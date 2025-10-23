@@ -1,0 +1,21 @@
+# OS
+.DS_Store
+Thumbs.db
+
+# PHP/Composer (in case added later)
+/vendor/
+composer.lock
+
+# Env & secrets
+config/.env.php
+
+# Logs & cache
+storage/logs/*
+!storage/logs/.gitkeep
+
+# Node (not used, but safe)
+node_modules/
+
+# Docker local state
+.env
+.docker/

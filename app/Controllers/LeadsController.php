@@ -1,0 +1,122 @@
+<?php
+namespace App\Controllers;
+
+use App\Core\View;
+use App\Security\Auth;
+use App\Models\Lead;
+use App\Helpers;
+
+class LeadsController
+{
+    public function __construct(private array $env) {}
+
+    public function index(): void
+    {
+        Auth::requireLogin();
+        $user = Auth::user();
+        $quick = $_GET['range'] ?? 'last_7';
+        [$start, $end] = \App\Helpers::dateRangeQuick($quick);
+        $search = trim($_GET['q'] ?? '');
+        $sort = $_GET['sort'] ?? 'desc';
+        $clientCode = trim($_GET['client'] ?? '');
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+        $page = max(1, (int)($_GET['page'] ?? 1));
+        $settings = \App\Models\Setting::getByUser($user['id']);
+        $limit = (int)($settings['page_size'] ?? 25);
+        $offset = ($page-1)*$limit;
+        $leads = Lead::listByUser($user['id'], [
+            'start'=>$start,'end'=>$end,'search'=>$search,'limit'=>$limit,'offset'=>$offset,'sort'=>$sort,'client_id'=>$client['id'] ?? null
+        ]);
+        $clients = \App\Models\Client::listByUser($user['id']);
+        View::render('leads/index', [
+            'leads' => $leads,
+            'range' => $quick,
+            'q' => $search,
+            'sort' => $sort,
+            'page' => $page,
+            'clients' => $clients,
+            'activeClient' => $clientCode,
+        ]);
+    }
+
+    public function reprocess(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $ids = array_map('intval', $_POST['ids'] ?? []);
+        if ($ids) {
+            $settings = \App\Models\Setting::getByUser(Auth::user()['id']);
+            $mode = $settings['filter_mode'] ?? 'algorithmic';
+            $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, \App\Core\DB::env('APP_KEY',''));
+            $client = ($mode === 'gpt' && $openaiKey) ? new \App\Services\OpenAIClient($openaiKey) : null;
+            foreach ($ids as $leadId) {
+                $lead = \App\Models\Lead::findWithEmail(Auth::user()['id'], $leadId);
+                if (!$lead) continue;
+                $res = $client ? $client->classify($lead) : \App\Services\LeadScorer::compute($lead);
+                $id = \App\Models\Lead::upsertFromEmail($lead, $res);
+                \App\Models\Lead::addCheck($id, Auth::user()['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+            }
+        }
+        Helpers::redirect('/leads');
+    }
+
+    public function delete(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $leadId = (int)($_POST['id'] ?? 0);
+        if ($leadId) { Lead::delete(Auth::user()['id'], $leadId); }
+        Helpers::redirect('/leads');
+    }
+
+    public function bulk(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $action = $_POST['action'] ?? '';
+        $ids = array_map('intval', $_POST['ids'] ?? []);
+        if ($action && $ids) {
+            if ($action === 'mark_genuine' || $action === 'mark_spam') {
+                $status = $action === 'mark_genuine' ? 'genuine' : 'spam';
+                foreach ($ids as $id) { Lead::manualMark($id, Auth::user()['id'], $status); }
+            } elseif ($action === 'reprocess') {
+                // Delegate to reprocess logic
+                $_POST['ids'] = $ids;
+                $this->reprocess();
+                return;
+            }
+        }
+        Helpers::redirect('/leads');
+    }
+
+    public function export(): void
+    {
+        Auth::requireLogin();
+        $user = Auth::user();
+        $quick = $_GET['range'] ?? 'last_7';
+        [$start, $end] = \App\Helpers::dateRangeQuick($quick);
+        $search = trim($_GET['q'] ?? '');
+        $status = $_GET['status'] ?? 'genuine';
+        $clientCode = trim($_GET['client'] ?? '');
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+        $rows = Lead::listByUserForExport($user['id'], [
+            'start'=>$start,'end'=>$end,'search'=>$search,'status'=>$status,'client_id'=>$client['id'] ?? null
+        ]);
+        header('Content-Type: text/csv');
+        header('Content-Disposition: attachment; filename="leads_' . $status . '.csv"');
+        $out = fopen('php://output', 'w');
+        fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
+        foreach ($rows as $r) {
+            fputcsv($out, [
+                $r['from_email'],
+                $r['subject'],
+                mb_substr($r['body_plain'] ?? '', 0, 160),
+                $r['received_at'],
+                $r['status'],
+                $r['score'],
+                $r['mode']
+            ]);
+        }
+        fclose($out);
+    }
+}

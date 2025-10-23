@@ -1,0 +1,26 @@
+version: '3.8'
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: rlc_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: password
+      MYSQL_DATABASE: real_leads_checker
+      MYSQL_USER: rlc
+      MYSQL_PASSWORD: rlcpass
+    ports:
+      - "3310:3306"
+    command: ["--default-authentication-plugin=mysql_native_password","--character-set-server=utf8mb4","--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - db_data:/var/lib/mysql
+  app:
+    build: ./php
+    container_name: rlc_app
+    depends_on:
+      - mysql
+    ports:
+      - "8000:80"
+    volumes:
+      - ..:/var/www/html
+volumes:
+  db_data:
