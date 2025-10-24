@@ -37,7 +37,7 @@
 
 <?php if (!empty($clients)): ?>
 <div class="mb-2">
-  <div class="btn-group btn-group-sm" role="group">
+  <div class="btn-group btn-group-sm clients-filter-group" role="group">
     <?php
       $clientBase = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
       if (!empty($status)) { $clientBase['status'] = $status; }
@@ -45,13 +45,13 @@
     ?>
     <a class="btn btn-outline-secondary position-relative <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>">
       All Clients
-      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success"><?php echo $totalBadge; ?></span>
+      <span class="badge rounded-pill bg-success client-badge"><?php echo $totalBadge; ?></span>
     </a>
     <?php foreach ($clients as $c): ?>
       <?php $cb = $clientBase; $cb['client'] = $c['shortcode']; $cnt = (int)($genuineCounts[$c['id']] ?? 0); ?>
       <a class="btn btn-outline-secondary position-relative <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>">
         <?php echo Helpers::e($c['shortcode']); ?>
-        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success"><?php echo $cnt; ?></span>
+        <span class="badge rounded-pill bg-success client-badge"><?php echo $cnt; ?></span>
       </a>
     <?php endforeach; ?>
   </div>
@@ -279,6 +279,13 @@ document.addEventListener('DOMContentLoaded', function () {
 .modal-zoom.show .modal-dialog { transform: scale(1); }
 .bulk-actions { white-space: nowrap; }
 .bulk-actions .form-select { min-width: 12rem; }
+/* Centered badges above client buttons without clipping */
+.clients-filter-group { overflow: visible; gap: .25rem; }
+.clients-filter-group .btn { position: relative; overflow: visible; padding-top: .6rem; }
+.clients-filter-group .client-badge {
+  position: absolute; left: 50%; top: 0; transform: translate(-50%, -55%);
+  pointer-events: none; z-index: 2; font-weight: 600;
+}
 </style>
 
 <script>
