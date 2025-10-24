@@ -37,6 +37,11 @@ if (file_exists(BASE_PATH . '/vendor/autoload.php')) {
     require BASE_PATH . '/vendor/autoload.php';
 }
 
+// Ensure critical service classes are available even if autoloader timing varies
+if (!class_exists('App\\Services\\LeadScorer')) {
+    require_once BASE_PATH . '/app/Services/LeadScorer.php';
+}
+
 // Set timezone
 date_default_timezone_set($ENV['DEFAULT_TIMEZONE'] ?? 'UTC');
 
@@ -105,8 +110,8 @@ $router->post('/settings/update-imap', [App\Controllers\SettingsController::clas
 $router->post('/settings/import-clients', [App\Controllers\SettingsController::class, 'importClients']);
 
 // Extra actions
-$router->post('/action/run-filter-all', [App\\Controllers\\DashboardController::class, 'runFilterAll']);
-$router->get('/action/filter-progress', [App\\Controllers\\DashboardController::class, 'filterProgress']);
+$router->post('/action/run-filter-all', [App\Controllers\DashboardController::class, 'runFilterAll']);
+$router->get('/action/filter-progress', [App\Controllers\DashboardController::class, 'filterProgress']);
 
 // Dispatch
 $router->dispatch();
