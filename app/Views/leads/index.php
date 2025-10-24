@@ -7,6 +7,9 @@
     <?php if (!empty($activeClient)): ?>
       <input type="hidden" name="client" value="<?php echo Helpers::e($activeClient); ?>">
     <?php endif; ?>
+    <?php if (!empty($status)): ?>
+      <input type="hidden" name="status" value="<?php echo Helpers::e($status); ?>">
+    <?php endif; ?>
     <input class="form-control form-control-sm me-2" type="search" placeholder="Search" name="q" value="<?php echo Helpers::e($q ?? ''); ?>">
     <select class="form-select form-select-sm me-2" name="sort">
       <option value="desc" <?php echo ($sort==='desc'?'selected':''); ?>>Newest</option>
@@ -63,11 +66,18 @@
     <button class="btn btn-sm btn-primary text-nowrap">Apply to selected</button>
     <button type="button" class="btn btn-sm btn-outline-success text-nowrap" onclick="document.querySelectorAll('tr[data-status=genuine] input.rowcb').forEach(cb=>cb.checked=true)">Select all Genuine</button>
     <?php
-      $filterQuery = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
-      if (!empty($activeClient)) { $filterQuery['client'] = $activeClient; }
-      $filterQuery['status'] = 'genuine';
+      $baseQuery = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
+      if (!empty($activeClient)) { $baseQuery['client'] = $activeClient; }
+      if (!empty($status) && $status === 'genuine') {
+          $toggleUrl = '/leads?' . http_build_query($baseQuery);
+          $toggleLabel = 'Show All';
+      } else {
+          $toggleQuery = $baseQuery; $toggleQuery['status'] = 'genuine';
+          $toggleUrl = '/leads?' . http_build_query($toggleQuery);
+          $toggleLabel = 'Show Genuine only';
+      }
     ?>
-    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="/leads?<?php echo http_build_query($filterQuery); ?>">Show Genuine only</a>
+    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="<?php echo $toggleUrl; ?>"><?php echo $toggleLabel; ?></a>
   </form>
 </div>
 
