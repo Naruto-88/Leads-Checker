@@ -63,7 +63,32 @@ class LeadScorer
         if (substr_count($body, '?') >= 1 && substr_count($body, '?') <= 5) { $score += 6; $reasons[] = '+question'; }
         if (preg_match('/^[A-Z][a-z]+\s[A-Z][a-z]+$/', $email['from_name'] ?? '')) { $score += 4; $reasons[] = '+human_name'; }
 
-        // Negative signals
+        // If any user/client-defined negative keyword matches, force spam
+        foreach ([$userNeg => 'user', $clientNeg => 'client'] as $list => $src) {}
+        // Above empty loop is placeholder to allow PHP syntax highlighting in editors; real logic below
+        $forcedSpam = false; $forcedReason = null;
+        foreach ($userNeg as $kw) {
+            $kw = trim((string)$kw); if ($kw==='') continue;
+            $pattern = '/\b' . preg_quote($kw, '/') . '\b/i';
+            if (preg_match($pattern, $subject) || preg_match($pattern, $body)) { $forcedSpam = true; $forcedReason = '-user_neg:' . $kw; break; }
+        }
+        if (!$forcedSpam) {
+            foreach ($clientNeg as $kw) {
+                $kw = trim((string)$kw); if ($kw==='') continue;
+                $pattern = '/\b' . preg_quote($kw, '/') . '\b/i';
+                if (preg_match($pattern, $subject) || preg_match($pattern, $body)) { $forcedSpam = true; $forcedReason = '-client_neg:' . $kw; break; }
+            }
+        }
+        if ($forcedSpam) {
+            return [
+                'score' => 0,
+                'reason' => $forcedReason,
+                'status' => 'spam',
+                'mode' => 'algorithmic',
+            ];
+        }
+
+        // Negative signals (defaults + any remaining)
         $negKeywords = array_unique(array_filter(array_merge([
             'crypto','casino','guest post','backlinks','seo offers','viagra','loan approval','porn','betting','win big','adult','escort','blackhat','mlm'
         ], $userNeg, $clientNeg)));
