@@ -104,5 +104,9 @@ $router->post('/settings/update-imap', [App\Controllers\SettingsController::clas
 
 $router->post('/settings/import-clients', [App\Controllers\SettingsController::class, 'importClients']);
 
+// Extra actions
+$router->post('/action/run-filter-all', [App\\Controllers\\DashboardController::class, 'runFilterAll']);
+$router->get('/action/filter-progress', [App\\Controllers\\DashboardController::class, 'filterProgress']);
+
 // Dispatch
 $router->dispatch();
