@@ -1,6 +1,6 @@
 <?php use App\Security\Csrf; use App\Helpers; ?>
 <div class="d-flex justify-content-between align-items-center mb-3">
-  <h1 class="h4">Dashboard 2</h1>
+  <h1 class="h4">Dashboard</h1>
   <div>
     <form method="post" action="/action/fetch-now" class="d-inline js-loading-form"><!-- Fetch Now -->
       <?php echo Csrf::input(); ?>
