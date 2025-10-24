@@ -19,6 +19,7 @@ class LeadsController
         $search = trim($_GET['q'] ?? '');
         $sort = $_GET['sort'] ?? 'desc';
         $clientCode = trim($_GET['client'] ?? '');
+        $status = trim($_GET['status'] ?? '');
         $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
         $page = max(1, (int)($_GET['page'] ?? 1));
         $settings = \App\Models\Setting::getByUser($user['id']);
@@ -27,6 +28,7 @@ class LeadsController
         $filters = [
             'start'=>$start,'end'=>$end,'search'=>$search,'limit'=>$limit,'offset'=>$offset,'sort'=>$sort,'client_id'=>$client['id'] ?? null
         ];
+        if (in_array($status, ['genuine','spam'])) { $filters['status'] = $status; }
         $leads = Lead::listByUser($user['id'], $filters);
         $total = Lead::countByUser($user['id'], $filters);
         $clients = \App\Models\Client::listByUser($user['id']);
@@ -40,6 +42,7 @@ class LeadsController
             'total' => $total,
             'clients' => $clients,
             'activeClient' => $clientCode,
+            'status' => $status,
         ];
         $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
         if ($isPartial) {

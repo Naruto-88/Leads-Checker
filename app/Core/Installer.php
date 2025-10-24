@@ -114,5 +114,15 @@ class Installer
         if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_pos_keywords TEXT NULL AFTER filter_threshold_spam"); }
         $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_neg_keywords'")->fetch();
         if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_neg_keywords TEXT NULL AFTER filter_pos_keywords"); }
+
+        // Per-client filtering fields
+        $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_threshold_genuine'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_threshold_genuine INT NULL AFTER website"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_threshold_spam'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_threshold_spam INT NULL AFTER filter_threshold_genuine"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_pos_keywords'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_pos_keywords TEXT NULL AFTER filter_threshold_spam"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_neg_keywords'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_neg_keywords TEXT NULL AFTER filter_pos_keywords"); }
     }
 }

@@ -10,7 +10,7 @@
       <?php echo Csrf::input(); ?>
       <button class="btn btn-primary btn-sm js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
     </form>
-    <form method="post" action="/action/run-filter" class="d-inline ms-2 js-loading-form">
+    <form id="processAllForm" method="post" action="/action/run-filter-all" class="d-inline ms-2 js-loading-form">
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="all" value="1">
       <input type="hidden" name="batch" value="500">
@@ -42,6 +42,29 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' + text;
     });
   });
+  // Process All progress polling (optional if endpoint is available)
+  const formAll = document.getElementById('processAllForm');
+  if (formAll) {
+    formAll.addEventListener('submit', function () {
+      const info = document.createElement('div');
+      info.className = 'small text-muted mt-2';
+      info.id = 'progressInfo';
+      formAll.parentElement.appendChild(info);
+      const tick = async () => {
+        try {
+          const res = await fetch('/action/filter-progress', { headers: { 'Accept':'application/json' } });
+          if (!res.ok) return;
+          const j = await res.json();
+          if (j && (typeof j.processed !== 'undefined')) {
+            info.textContent = `Processing ${j.processed} of ${j.total}...`;
+            if (!j.done) { setTimeout(tick, 1000); }
+            else { info.textContent = `Done. Processed ${j.processed} of ${j.total}. Remaining queue: ${j.remaining ?? 0}.`; }
+          }
+        } catch (e) {}
+      };
+      setTimeout(tick, 800);
+    });
+  }
 });
 </script>
 

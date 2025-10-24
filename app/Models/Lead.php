@@ -35,6 +35,10 @@ class Lead
     {
         $sql = 'SELECT l.*, e.from_email, e.subject, e.body_plain, e.received_at FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.user_id = :uid AND l.deleted_at IS NULL';
         $params = ['uid'=>$userId];
+        if (!empty($opts['status'])) {
+            $sql .= ' AND l.status = :status';
+            $params['status'] = $opts['status'];
+        }
         if (!empty($opts['client_id'])) {
             $sql .= ' AND l.client_id = :client_id';
             $params['client_id'] = (int)$opts['client_id'];
@@ -67,6 +71,10 @@ class Lead
     {
         $sql = 'SELECT COUNT(*) FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.user_id = :uid AND l.deleted_at IS NULL';
         $params = ['uid'=>$userId];
+        if (!empty($opts['status'])) {
+            $sql .= ' AND l.status = :status';
+            $params['status'] = $opts['status'];
+        }
         if (!empty($opts['client_id'])) {
             $sql .= ' AND l.client_id = :client_id';
             $params['client_id'] = (int)$opts['client_id'];

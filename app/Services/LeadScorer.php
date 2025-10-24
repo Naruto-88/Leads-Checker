@@ -11,8 +11,9 @@ class LeadScorer
 
         $score = 50; $reasons = [];
 
-        // Load user-specific settings if available
+        // Load user-specific and client-specific settings if available
         $thrGenuine = 70; $thrSpam = 40; $userPos = []; $userNeg = [];
+        $clientPos = []; $clientNeg = []; $clientThrG = null; $clientThrS = null; $clientDomainTokens = [];
         try {
             if (!empty($email['user_id'])) {
                 $settings = \App\Models\Setting::getByUser((int)$email['user_id']);
@@ -25,6 +26,26 @@ class LeadScorer
                     $userNeg = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$settings['filter_neg_keywords']))));
                 }
             }
+            if (!empty($email['client_id'])) {
+                $pdo = \App\Core\DB::pdo();
+                $stmt = $pdo->prepare('SELECT name, website, filter_threshold_genuine, filter_threshold_spam, filter_pos_keywords, filter_neg_keywords FROM clients WHERE id = ?');
+                $stmt->execute([(int)$email['client_id']]);
+                if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    $clientThrG = $row['filter_threshold_genuine'] !== null ? (int)$row['filter_threshold_genuine'] : null;
+                    $clientThrS = $row['filter_threshold_spam'] !== null ? (int)$row['filter_threshold_spam'] : null;
+                    if (!empty($row['filter_pos_keywords'])) { $clientPos = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$row['filter_pos_keywords'])))); }
+                    if (!empty($row['filter_neg_keywords'])) { $clientNeg = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$row['filter_neg_keywords'])))); }
+                    if (!empty($row['website'])) {
+                        $host = parse_url((string)$row['website'], PHP_URL_HOST) ?: (string)$row['website'];
+                        $host = strtolower($host);
+                        $host = preg_replace('/^www\./', '', $host);
+                        $parts = preg_split('/[\.-]+/', (string)$host);
+                        foreach ($parts as $p) { if (strlen($p) >= 3) { $clientDomainTokens[] = $p; } }
+                    }
+                }
+                if ($clientThrG !== null) { $thrGenuine = $clientThrG; }
+                if ($clientThrS !== null) { $thrSpam = $clientThrS; }
+            }
         } catch (\Throwable $e) {
             // ignore and keep defaults
         }
@@ -32,7 +53,7 @@ class LeadScorer
         // Positive signals
         $phrases = array_unique(array_filter(array_merge([
             'quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation','demo','trial','meeting','schedule','availability'
-        ], $userPos)));
+        ], $userPos, $clientPos, $clientDomainTokens)));
         foreach ($phrases as $p) {
             if (str_contains($subject, $p) || str_contains($body, $p)) {
                 $score += 8; $reasons[] = "+phrase:$p"; break;
@@ -45,7 +66,7 @@ class LeadScorer
         // Negative signals
         $negKeywords = array_unique(array_filter(array_merge([
             'crypto','casino','guest post','backlinks','seo offers','viagra','loan approval','porn','betting','win big','adult','escort','blackhat','mlm'
-        ], $userNeg)));
+        ], $userNeg, $clientNeg)));
         foreach ($negKeywords as $k) {
             if (str_contains($subject, $k) || str_contains($body, $k)) { $score -= 15; $reasons[] = "-keyword:$k"; }
         }
@@ -62,9 +83,19 @@ class LeadScorer
         }
 
         $score = max(0, min(100, $score));
-        $status = 'unknown';
-        if ($score >= $thrGenuine) $status = 'genuine';
-        elseif ($score <= $thrSpam) $status = 'spam';
+        // Decide status; avoid 'unknown' by using tie-breakers
+        if ($score >= $thrGenuine) {
+            $status = 'genuine';
+        } elseif ($score <= $thrSpam) {
+            $status = 'spam';
+        } else {
+            // Tie-break: domain tokens and positive phrases push to genuine, otherwise spam
+            $tiePositive = false;
+            foreach (array_merge($phrases, $clientDomainTokens) as $p) {
+                if ($p && (str_contains($subject, $p) || str_contains($body, $p))) { $tiePositive = true; break; }
+            }
+            $status = $tiePositive ? 'genuine' : 'spam';
+        }
 
         return [
             'score' => (int)$score,

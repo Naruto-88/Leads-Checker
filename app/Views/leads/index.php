@@ -62,6 +62,12 @@
     </select>
     <button class="btn btn-sm btn-primary text-nowrap">Apply to selected</button>
     <button type="button" class="btn btn-sm btn-outline-success text-nowrap" onclick="document.querySelectorAll('tr[data-status=genuine] input.rowcb').forEach(cb=>cb.checked=true)">Select all Genuine</button>
+    <?php
+      $filterQuery = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
+      if (!empty($activeClient)) { $filterQuery['client'] = $activeClient; }
+      $filterQuery['status'] = 'genuine';
+    ?>
+    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="/leads?<?php echo http_build_query($filterQuery); ?>">Show Genuine only</a>
   </form>
 </div>
 

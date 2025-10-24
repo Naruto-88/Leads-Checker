@@ -130,6 +130,13 @@ class DashboardController
         $cap = max($batch, (int)($_POST['cap'] ?? 5000));
         $processed = 0; $loops = 0;
 
+        // Determine initial queue size for progress
+        $qStmt0 = $pdo->prepare('SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND (l.id IS NULL OR l.status="unknown")');
+        $qStmt0->execute([$user['id']]);
+        $total = (int)$qStmt0->fetchColumn();
+        $progressFile = BASE_PATH . '/storage/logs/progress_user_' . (int)$user['id'] . '.json';
+        @file_put_contents($progressFile, json_encode(['processed'=>0,'total'=>$total,'done'=>false]));
+
         $fetchBatch = function(int $limit) use ($pdo, $user) {
             $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
             $stmt->execute([$user['id']]);
@@ -151,6 +158,9 @@ class DashboardController
                 $leadId = Lead::upsertFromEmail($em, $res);
                 Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
                 $processed++;
+                if ($processed % 20 === 0 || $processed === $total) {
+                    @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>false]));
+                }
                 if ($processed >= $cap) { break; }
             }
             $loops++;
@@ -160,11 +170,24 @@ class DashboardController
         $qStmt->execute([$user['id']]);
         $remaining = (int)$qStmt->fetchColumn();
 
+        @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>true,'remaining'=>$remaining]));
+
         $_SESSION['flash'] = 'Processed ' . $processed . ' emails in ' . $loops . ' pass(es). Remaining queue: ' . $remaining . '.';
         $return = trim($_POST['return'] ?? '');
         if ($return && str_starts_with($return, '/')) {
             Helpers::redirect($return);
         }
         Helpers::redirect('/');
+    }
+
+    public function filterProgress(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json');
+        $user = Auth::user();
+        $file = BASE_PATH . '/storage/logs/progress_user_' . (int)$user['id'] . '.json';
+        if (!file_exists($file)) { echo json_encode(['processed'=>0,'total'=>0,'done'=>false]); return; }
+        $json = @file_get_contents($file);
+        echo $json !== false ? $json : json_encode(['processed'=>0,'total'=>0,'done'=>false]);
     }
 }
