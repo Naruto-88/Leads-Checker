@@ -54,14 +54,14 @@
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Leads Over Time</h6><canvas id="chartLines" height="110"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Status Split</h6><canvas id="chartPie" height="110"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Leads Over Time</h6><div class="chart-box"><canvas id="chartLines"></canvas></div></div></div></div>
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Status Split</h6><div class="chart-box chart-box--pie"><canvas id="chartPie"></canvas></div></div></div></div>
 </div>
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h6 class="text-muted mb-3">Top Sender Domains</h6>
-    <canvas id="chartDomains" height="120"></canvas>
+    <div class="chart-box chart-box--bar"><canvas id="chartDomains"></canvas></div>
   </div>
  </div>
 
@@ -139,7 +139,13 @@ document.addEventListener('DOMContentLoaded', function(){
   });
 
   if (window.Chart && chartData && chartData.labels) {
-    new Chart(document.getElementById('chartLines'), {
+    // Avoid multiple initializations if this script runs more than once
+    window._dash2Charts = window._dash2Charts || {};
+    if (window._dash2Charts.lines) { window._dash2Charts.lines.destroy(); }
+    if (window._dash2Charts.pie) { window._dash2Charts.pie.destroy(); }
+    if (window._dash2Charts.domains) { window._dash2Charts.domains.destroy(); }
+
+    window._dash2Charts.lines = new Chart(document.getElementById('chartLines'), {
       type: 'line',
       data: {
         labels: chartData.labels,
@@ -148,15 +154,15 @@ document.addEventListener('DOMContentLoaded', function(){
           { label: 'spam', data: chartData.spam, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,.15)', tension:.25, fill:true },
           { label: 'unknown', data: chartData.unknown, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,.15)', tension:.25, fill:true }
         ]
-      }, options: { maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
+      }, options: { responsive:true, resizeDelay:120, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
     });
 
-    new Chart(document.getElementById('chartPie'), {
-      type: 'pie', data: { labels:['genuine','spam','unknown'], datasets:[{ data:[statusSplit.genuine||0,statusSplit.spam||0,statusSplit.unknown||0], backgroundColor:['#28a745','#dc3545','#6c757d'] }] }, options:{ maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
+    window._dash2Charts.pie = new Chart(document.getElementById('chartPie'), {
+      type: 'pie', data: { labels:['genuine','spam','unknown'], datasets:[{ data:[statusSplit.genuine||0,statusSplit.spam||0,statusSplit.unknown||0], backgroundColor:['#28a745','#dc3545','#6c757d'] }] }, options:{ responsive:true, resizeDelay:120, maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
     });
 
-    new Chart(document.getElementById('chartDomains'), {
-      type: 'bar', data: { labels: (domains||[]).map(d=>d.dom), datasets:[{ label:'emails', data:(domains||[]).map(d=>+d.c), backgroundColor:'#3b82f6' }] }, options:{ maintainAspectRatio:false, indexAxis:'x', scales:{ y:{ beginAtZero:true } } }
+    window._dash2Charts.domains = new Chart(document.getElementById('chartDomains'), {
+      type: 'bar', data: { labels: (domains||[]).map(d=>d.dom), datasets:[{ label:'emails', data:(domains||[]).map(d=>+d.c), backgroundColor:'#3b82f6' }] }, options:{ responsive:true, resizeDelay:120, maintainAspectRatio:false, indexAxis:'x', scales:{ y:{ beginAtZero:true } } }
     });
   }
 });
@@ -176,4 +182,9 @@ document.addEventListener('DOMContentLoaded', function(){
 .stat-green  { background: linear-gradient(180deg,#e8fff0, #f6fffa); }
 .stat-red    { background: linear-gradient(180deg,#ffe8e8, #fff6f6); }
 .stat-amber  { background: linear-gradient(180deg,#fff6e5, #fffaf0); }
+/* Fix chart growth by constraining canvas area */
+.dashboard2 .chart-box { height: 150px; position: relative; }
+.dashboard2 .chart-box--pie { height: 130px; }
+.dashboard2 .chart-box--bar { height: 140px; }
+.dashboard2 .chart-box canvas { width: 100% !important; height: 100% !important; display: block; }
 </style>
