@@ -67,6 +67,15 @@ class DashboardController
 
         $pdo = DB::pdo();
 
+        // If All Time selected, derive actual bounds from user's data to avoid huge ranges
+        if ($quick === 'all') {
+            $mm = $pdo->prepare('SELECT MIN(received_at) AS mn, MAX(received_at) AS mx FROM emails WHERE user_id = ?');
+            $mm->execute([$user['id']]);
+            $row = $mm->fetch(\PDO::FETCH_ASSOC) ?: [];
+            if (!empty($row['mn'])) { $start = (new \DateTime($row['mn']))->format('Y-m-d 00:00:00'); }
+            if (!empty($row['mx'])) { $end = (new \DateTime($row['mx']))->format('Y-m-d 23:59:59'); }
+        }
+
         // Header KPIs
         $qNew = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ?');
         $qNew->execute([$user['id'], $start, $end]);
@@ -88,24 +97,49 @@ class DashboardController
         $spamRate = $processed > 0 ? round($spam * 100 / $processed, 1) : 0.0;
 
         // Leads over time (per day)
-        $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
+        // Choose grouping granularity by span to avoid memory blowups
+        $ds = new \DateTime($start); $de = new \DateTime($end);
+        $spanDays = (int)$ds->diff($de)->format('%a');
+        $groupMonthly = $spanDays > 370; // if more than ~1 year, group by month
+
+        if ($groupMonthly) {
+            $q = $pdo->prepare("SELECT DATE_FORMAT(e.received_at,'%Y-%m') p, l.status, COUNT(*) c
                                  FROM leads l JOIN emails e ON e.id=l.email_id
                                  WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
-                                 GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
-        $qDaily->execute([$user['id'], $start, $end]);
-        $dailyRows = $qDaily->fetchAll(\PDO::FETCH_ASSOC);
-        $series = [];
-        foreach ($dailyRows as $r) { $series[$r['d']][$r['status']] = (int)$r['c']; }
-        // Build continuous date range
-        $dates = [];
-        $dt = new \DateTime(substr($start,0,10));
-        $dtEnd = new \DateTime(substr($end,0,10));
-        while ($dt <= $dtEnd) { $dates[] = $dt->format('Y-m-d'); $dt->modify('+1 day'); }
-        $chart = [ 'labels'=>$dates, 'genuine'=>[], 'spam'=>[], 'unknown'=>[] ];
-        foreach ($dates as $d) {
-            $chart['genuine'][] = (int)($series[$d]['genuine'] ?? 0);
-            $chart['spam'][] = (int)($series[$d]['spam'] ?? 0);
-            $chart['unknown'][] = (int)($series[$d]['unknown'] ?? 0);
+                                 GROUP BY p, l.status ORDER BY p ASC");
+            $q->execute([$user['id'], $start, $end]);
+            $rows = $q->fetchAll(\PDO::FETCH_ASSOC);
+            $series = [];
+            foreach ($rows as $r) { $series[$r['p']][$r['status']] = (int)$r['c']; }
+            $labels = array_keys($series);
+            sort($labels);
+            $chart = [ 'labels'=>$labels, 'genuine'=>[], 'spam'=>[], 'unknown'=>[] ];
+            foreach ($labels as $p) {
+                $chart['genuine'][] = (int)($series[$p]['genuine'] ?? 0);
+                $chart['spam'][] = (int)($series[$p]['spam'] ?? 0);
+                $chart['unknown'][] = (int)($series[$p]['unknown'] ?? 0);
+            }
+        } else {
+            $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
+                                     FROM leads l JOIN emails e ON e.id=l.email_id
+                                     WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                     GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
+            $qDaily->execute([$user['id'], $start, $end]);
+            $dailyRows = $qDaily->fetchAll(\PDO::FETCH_ASSOC);
+            $series = [];
+            foreach ($dailyRows as $r) { $series[$r['d']][$r['status']] = (int)$r['c']; }
+            // Build continuous date range but cap to safety
+            $dates = [];
+            $dt = new \DateTime(substr($start,0,10));
+            $dtEnd = new \DateTime(substr($end,0,10));
+            $safe = 0; $limit = 400; // cap at ~400 points
+            while ($dt <= $dtEnd && $safe < $limit) { $dates[] = $dt->format('Y-m-d'); $dt->modify('+1 day'); $safe++; }
+            $chart = [ 'labels'=>$dates, 'genuine'=>[], 'spam'=>[], 'unknown'=>[] ];
+            foreach ($dates as $d) {
+                $chart['genuine'][] = (int)($series[$d]['genuine'] ?? 0);
+                $chart['spam'][] = (int)($series[$d]['spam'] ?? 0);
+                $chart['unknown'][] = (int)($series[$d]['unknown'] ?? 0);
+            }
         }
 
         // Status split
