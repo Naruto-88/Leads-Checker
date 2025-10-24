@@ -44,8 +44,10 @@ class Lead
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (e.subject LIKE :q OR e.from_email LIKE :q OR e.body_plain LIKE :q)';
-            $params['q'] = '%' . $opts['search'] . '%';
+            $sql .= ' AND (e.subject LIKE :q1 OR e.from_email LIKE :q2 OR e.body_plain LIKE :q3)';
+            $params['q1'] = '%' . $opts['search'] . '%';
+            $params['q2'] = '%' . $opts['search'] . '%';
+            $params['q3'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
             $sql .= ' AND e.received_at BETWEEN :start AND :end';
@@ -80,8 +82,10 @@ class Lead
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (e.subject LIKE :q OR e.from_email LIKE :q OR e.body_plain LIKE :q)';
-            $params['q'] = '%' . $opts['search'] . '%';
+            $sql .= ' AND (e.subject LIKE :q1 OR e.from_email LIKE :q2 OR e.body_plain LIKE :q3)';
+            $params['q1'] = '%' . $opts['search'] . '%';
+            $params['q2'] = '%' . $opts['search'] . '%';
+            $params['q3'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
             $sql .= ' AND e.received_at BETWEEN :start AND :end';
@@ -143,8 +147,10 @@ class Lead
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (e.subject LIKE :q OR e.from_email LIKE :q OR e.body_plain LIKE :q)';
-            $params['q'] = '%' . $opts['search'] . '%';
+            $sql .= ' AND (e.subject LIKE :q1 OR e.from_email LIKE :q2 OR e.body_plain LIKE :q3)';
+            $params['q1'] = '%' . $opts['search'] . '%';
+            $params['q2'] = '%' . $opts['search'] . '%';
+            $params['q3'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
             $sql .= ' AND e.received_at BETWEEN :start AND :end';
