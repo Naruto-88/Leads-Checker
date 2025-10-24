@@ -41,6 +41,107 @@ class DashboardController
         ]);
     }
 
+    public function dashboard2(): void
+    {
+        Auth::requireLogin();
+        $user = Auth::user();
+        $quick = $_GET['range'] ?? 'last_7';
+        [$startDefault, $endDefault] = \App\Helpers::dateRangeQuick($quick);
+        $start = trim($_GET['start'] ?? '') ?: $startDefault;
+        $end = trim($_GET['end'] ?? '') ?: $endDefault;
+
+        $pdo = DB::pdo();
+
+        // Header KPIs
+        $qNew = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ?');
+        $qNew->execute([$user['id'], $start, $end]);
+        $newEmails = (int)$qNew->fetchColumn();
+
+        $qProcessed = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status <> 'unknown' AND e.received_at BETWEEN ? AND ?");
+        $qProcessed->execute([$user['id'], $start, $end]);
+        $processed = (int)$qProcessed->fetchColumn();
+
+        $qGenuine = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='genuine' AND e.received_at BETWEEN ? AND ?");
+        $qGenuine->execute([$user['id'], $start, $end]);
+        $genuine = (int)$qGenuine->fetchColumn();
+
+        $qSpam = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='spam' AND e.received_at BETWEEN ? AND ?");
+        $qSpam->execute([$user['id'], $start, $end]);
+        $spam = (int)$qSpam->fetchColumn();
+
+        $genuineRate = $processed > 0 ? round($genuine * 100 / $processed, 1) : 0.0;
+        $spamRate = $processed > 0 ? round($spam * 100 / $processed, 1) : 0.0;
+
+        // Leads over time (per day)
+        $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
+                                 FROM leads l JOIN emails e ON e.id=l.email_id
+                                 WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                 GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
+        $qDaily->execute([$user['id'], $start, $end]);
+        $dailyRows = $qDaily->fetchAll(\PDO::FETCH_ASSOC);
+        $series = [];
+        foreach ($dailyRows as $r) { $series[$r['d']][$r['status']] = (int)$r['c']; }
+        // Build continuous date range
+        $dates = [];
+        $dt = new \DateTime(substr($start,0,10));
+        $dtEnd = new \DateTime(substr($end,0,10));
+        while ($dt <= $dtEnd) { $dates[] = $dt->format('Y-m-d'); $dt->modify('+1 day'); }
+        $chart = [ 'labels'=>$dates, 'genuine'=>[], 'spam'=>[], 'unknown'=>[] ];
+        foreach ($dates as $d) {
+            $chart['genuine'][] = (int)($series[$d]['genuine'] ?? 0);
+            $chart['spam'][] = (int)($series[$d]['spam'] ?? 0);
+            $chart['unknown'][] = (int)($series[$d]['unknown'] ?? 0);
+        }
+
+        // Status split
+        $statusSplit = ['genuine'=>$genuine,'spam'=>$spam,'unknown'=>max(0,$newEmails - ($genuine+$spam))];
+
+        // Top sender domains (from emails in range)
+        $qDomains = $pdo->prepare("SELECT LOWER(SUBSTRING_INDEX(from_email,'@',-1)) dom, COUNT(*) c
+                                   FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ? AND from_email LIKE '%@%'
+                                   GROUP BY dom ORDER BY c DESC LIMIT 10");
+        $qDomains->execute([$user['id'], $start, $end]);
+        $domains = $qDomains->fetchAll(\PDO::FETCH_ASSOC);
+
+        // Recent leads
+        $qRecent = $pdo->prepare("SELECT l.*, e.from_email, e.subject, e.received_at
+                                  FROM leads l JOIN emails e ON e.id=l.email_id
+                                  WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                  ORDER BY e.received_at DESC LIMIT 10");
+        $qRecent->execute([$user['id'], $start, $end]);
+        $recent = $qRecent->fetchAll(\PDO::FETCH_ASSOC);
+
+        // System health
+        $qQueue = $pdo->prepare("SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND (l.id IS NULL OR l.status='unknown')");
+        $qQueue->execute([$user['id']]);
+        $queue = (int)$qQueue->fetchColumn();
+        $lastFetch = $pdo->prepare('SELECT MAX(received_at) FROM emails WHERE user_id=?');
+        $lastFetch->execute([$user['id']]);
+        $lastFetchAt = (string)$lastFetch->fetchColumn();
+        $lastProcess = $pdo->prepare('SELECT MAX(updated_at) FROM leads WHERE user_id=?');
+        $lastProcess->execute([$user['id']]);
+        $lastProcessAt = (string)$lastProcess->fetchColumn();
+
+        View::render('dashboard2/index', [
+            'range'=>$quick,
+            'start'=>$start,
+            'end'=>$end,
+            'newEmails'=>$newEmails,
+            'processed'=>$processed,
+            'genuine'=>$genuine,
+            'spam'=>$spam,
+            'genuineRate'=>$genuineRate,
+            'spamRate'=>$spamRate,
+            'chart'=>$chart,
+            'statusSplit'=>$statusSplit,
+            'domains'=>$domains,
+            'recent'=>$recent,
+            'queue'=>$queue,
+            'lastFetchAt'=>$lastFetchAt,
+            'lastProcessAt'=>$lastProcessAt,
+        ]);
+    }
+
     public function fetchNow(): void
     {
         Auth::requireLogin();

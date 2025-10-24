@@ -68,6 +68,7 @@ $router->post('/lead/reprocess', [App\Controllers\LeadController::class, 'reproc
 $router->post('/lead/mark', [App\Controllers\LeadController::class, 'mark']);
 
 $router->get('/emails', [App\Controllers\EmailsController::class, 'index']);
+$router->get('/dashboard2', [App\Controllers\DashboardController::class, 'dashboard2']);
 $router->post('/emails/process-selected', [App\Controllers\EmailsController::class, 'processSelected']);
 
 $router->get('/settings', [App\Controllers\SettingsController::class, 'index']);
