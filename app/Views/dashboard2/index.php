@@ -10,7 +10,11 @@
       <?php echo Csrf::input(); ?>
       <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
     </form>
-    <a class="btn btn-sm btn-success ms-2" href="/leads/export?status=genuine&range=<?php echo urlencode($range); ?>">Export CSV</a>
+    <?php
+      $exportQs = ['status'=>'genuine','range'=>$range];
+      if ($range==='custom') { $exportQs['start']=$start; $exportQs['end']=$end; }
+    ?>
+    <a class="btn btn-sm btn-success ms-2" href="<?php echo '/leads/export?' . http_build_query($exportQs); ?>">Export CSV</a>
   </div>
 </div>
 
@@ -31,13 +35,13 @@
     ?>
     <form method="get" action="/dashboard2" class="d-flex align-items-center gap-2 ms-auto">
       <input type="hidden" name="range" value="custom">
-      <div class="input-group input-group-sm" style="width: 240px;">
+      <div class="input-group input-group-sm" style="width: 210px;">
         <span class="input-group-text">Start</span>
-        <input class="form-control" name="start" value="<?php echo Helpers::e($start); ?>">
+        <input class="form-control" type="date" name="start" value="<?php echo Helpers::e(substr($start,0,10)); ?>">
       </div>
-      <div class="input-group input-group-sm" style="width: 240px;">
+      <div class="input-group input-group-sm" style="width: 210px;">
         <span class="input-group-text">End</span>
-        <input class="form-control" name="end" value="<?php echo Helpers::e($end); ?>">
+        <input class="form-control" type="date" name="end" value="<?php echo Helpers::e(substr($end,0,10)); ?>">
       </div>
       <button class="btn btn-sm btn-outline-secondary">Apply</button>
     </form>

@@ -46,9 +46,24 @@ class DashboardController
         Auth::requireLogin();
         $user = Auth::user();
         $quick = $_GET['range'] ?? 'last_7';
-        [$startDefault, $endDefault] = \App\Helpers::dateRangeQuick($quick);
-        $start = trim($_GET['start'] ?? '') ?: $startDefault;
-        $end = trim($_GET['end'] ?? '') ?: $endDefault;
+        // Normalize and validate range/start/end
+        $allowed = ['last_week','last_7','last_month','last_30','all','custom'];
+        if (!in_array($quick, $allowed, true)) { $quick = 'last_7'; }
+        [$startDefault, $endDefault] = \App\Helpers::dateRangeQuick($quick === 'custom' ? 'last_7' : $quick);
+        $startRaw = trim($_GET['start'] ?? '');
+        $endRaw = trim($_GET['end'] ?? '');
+        if ($quick === 'custom') {
+            // Accept YYYY-MM-DD or full datetime; fill missing times
+            $start = $startRaw !== '' ? (preg_match('/^\d{4}-\d{2}-\d{2}$/', $startRaw) ? $startRaw.' 00:00:00' : $startRaw) : $startDefault;
+            $end = $endRaw !== '' ? (preg_match('/^\d{4}-\d{2}-\d{2}$/', $endRaw) ? $endRaw.' 23:59:59' : $endRaw) : $endDefault;
+        } else {
+            $start = $startDefault; $end = $endDefault;
+        }
+        // Safety: ensure chronological order
+        try {
+            $ds = new \DateTime($start); $de = new \DateTime($end);
+            if ($ds > $de) { $tmp = $start; $start = $end; $end = $tmp; }
+        } catch (\Throwable $e) {}
 
         $pdo = DB::pdo();
 
