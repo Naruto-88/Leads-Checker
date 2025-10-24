@@ -181,6 +181,50 @@ document.addEventListener('DOMContentLoaded', function () {
       modal.show();
     });
   });
+
+  // Handle mark/reprocess inside modal via AJAX and close with a quick fade
+  modalEl.addEventListener('submit', async function (e) {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const action = form.getAttribute('action') || '';
+    if (!/\/lead\/(mark|reprocess)$/.test(action)) return;
+    e.preventDefault();
+    try {
+      const fd = new FormData(form);
+      const res = await fetch(action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      });
+      const json = await res.json();
+      if (!json || !json.ok) throw new Error('Bad response');
+      const id = json.lead?.id;
+      const status = json.lead?.status || 'unknown';
+      const score = json.lead?.score ?? '';
+      const mode = json.lead?.mode || '';
+      if (id) {
+        const rowCb = document.querySelector('#leadsTable input.rowcb[value="' + id + '"]');
+        const row = rowCb ? rowCb.closest('tr') : null;
+        if (row) {
+          row.setAttribute('data-status', status);
+          const cells = row.querySelectorAll('td');
+          if (cells[5]) cells[5].textContent = String(score);
+          if (cells[6]) {
+            if (status === 'genuine') cells[6].innerHTML = '<span class="badge bg-success">Genuine</span>';
+            else if (status === 'spam') cells[6].innerHTML = '<span class="badge bg-danger">Spam</span>';
+            else cells[6].innerHTML = '<span class="badge bg-secondary">Unknown</span>';
+          }
+          if (cells[7]) cells[7].innerHTML = '<span class="badge bg-light text-dark">' + mode.replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</span>';
+        }
+      }
+      // Quick fade-out before closing
+      const content = modalEl.querySelector('.modal-content');
+      if (content) { content.style.transition = 'opacity .15s ease, transform .15s ease'; content.style.opacity = '0'; content.style.transform = 'scale(0.98)'; }
+      setTimeout(() => { modal.hide(); if (content) { content.style.opacity=''; content.style.transform=''; } }, 150);
+    } catch (err) {
+      modalBody.innerHTML = '<div class="text-danger">Action failed. Please try again.</div>';
+    }
+  }, true);
   // Load more
   const loadBtn = document.getElementById('loadMoreLeads');
   if (loadBtn) {

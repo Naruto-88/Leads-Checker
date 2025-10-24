@@ -47,6 +47,23 @@ class LeadController
         }
         $id = Lead::upsertFromEmail($lead, $res);
         Lead::addCheck($id, Auth::user()['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && str_contains(strtolower($_SERVER['HTTP_ACCEPT']), 'application/json'));
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            $updated = Lead::findWithEmail(Auth::user()['id'], $leadId);
+            echo json_encode([
+                'ok' => true,
+                'lead' => [
+                    'id' => (int)$updated['id'],
+                    'status' => $updated['status'],
+                    'score' => (int)$updated['score'],
+                    'mode' => (string)($updated['mode'] ?? ''),
+                ],
+            ]);
+            return;
+        }
         Helpers::redirect('/lead/view?id=' . $leadId);
     }
 
@@ -58,6 +75,23 @@ class LeadController
         $status = $_POST['status'] ?? 'unknown';
         if (in_array($status, ['genuine','spam'])) {
             Lead::manualMark($leadId, Auth::user()['id'], $status);
+        }
+
+        $isAjax = (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest')
+            || (isset($_SERVER['HTTP_ACCEPT']) && str_contains(strtolower($_SERVER['HTTP_ACCEPT']), 'application/json'));
+        if ($isAjax) {
+            header('Content-Type: application/json');
+            $updated = Lead::findWithEmail(Auth::user()['id'], $leadId);
+            echo json_encode([
+                'ok' => true,
+                'lead' => [
+                    'id' => (int)$updated['id'],
+                    'status' => $updated['status'],
+                    'score' => (int)$updated['score'],
+                    'mode' => (string)($updated['mode'] ?? ''),
+                ],
+            ]);
+            return;
         }
         Helpers::redirect('/lead/view?id=' . $leadId);
     }
