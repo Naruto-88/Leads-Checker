@@ -11,6 +11,16 @@ class LeadScorer
 
         $score = 50; $reasons = [];
 
+        // First priority: language gate — only English emails can be genuine
+        if (!self::isLikelyEnglish($subject . ' ' . $body)) {
+            return [
+                'score' => 0,
+                'reason' => 'non_english',
+                'status' => 'spam',
+                'mode' => 'algorithmic',
+            ];
+        }
+
         // Load user-specific and client-specific settings if available
         $thrGenuine = 70; $thrSpam = 40; $userPos = []; $userNeg = [];
         $clientPos = []; $clientNeg = []; $clientThrG = null; $clientThrS = null; $clientDomainTokens = [];
@@ -144,5 +154,28 @@ class LeadScorer
             'mode' => 'algorithmic',
         ];
     }
-}
 
+    private static function isLikelyEnglish(string $text): bool
+    {
+        $text = trim($text);
+        if ($text === '') { return true; }
+        // Count letters in any script and count ASCII Latin letters
+        $totalLetters = preg_match_all('/\p{L}/u', $text, $m1);
+        $latinLetters = preg_match_all('/[A-Za-z]/u', $text, $m2);
+        // If there are letters, require strong majority to be ASCII Latin
+        if ($totalLetters > 0 && ($latinLetters / max(1, $totalLetters)) < 0.8) {
+            return false;
+        }
+        // Hard checks for common non-Latin scripts
+        $scripts = ['Cyrillic','Han','Arabic','Devanagari','Hebrew','Hangul','Thai','Hiragana','Katakana','Greek'];
+        foreach ($scripts as $script) {
+            if (preg_match('/\p{' . $script . '}{5,}/u', $text)) { return false; }
+        }
+        // Heuristic: high proportion of non-ASCII bytes suggests non-English
+        $asciiOnly = preg_replace('/[\x00-\x7F]+/', '', $text);
+        $nonAsciiLen = strlen($asciiOnly);
+        $len = strlen($text);
+        if ($len > 40 && $nonAsciiLen > 0.25 * $len) { return false; }
+        return true;
+    }
+}
