@@ -28,6 +28,8 @@
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
     <input type="hidden" name="batch" value="500">
+    <input type="hidden" name="all" value="1">
+    <input type="hidden" name="cap" value="5000">
     <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
   </form>
   </div>

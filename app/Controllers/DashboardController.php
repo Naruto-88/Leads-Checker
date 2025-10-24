@@ -71,8 +71,12 @@ class DashboardController
         $all = !empty($_POST['all']);
         $cap = max($batch, (int)($_POST['cap'] ?? $batch));
         $processed = 0;
-        $fetchBatch = function(int $limit) use ($pdo, $user) {
-            $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+        $fetchBatch = function(int $limit) use ($pdo, $user, $all) {
+            if ($all) {
+                $stmt = $pdo->prepare('SELECT e.* FROM emails e WHERE e.user_id = ? ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+            } else {
+                $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+            }
             $stmt->execute([$user['id']]);
             return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         };
