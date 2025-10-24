@@ -56,7 +56,7 @@ App\Core\Installer::installIfNeeded();
 $router = new App\Core\Router($ENV);
 
 // Register routes
-$router->get('/', [App\Controllers\DashboardController::class, 'index']);
+$router->get('/', [App\Controllers\DashboardController::class, 'dashboard2']);
 $router->get('/leads', [App\Controllers\LeadsController::class, 'index']);
 $router->get('/leads/export', [App\Controllers\LeadsController::class, 'export']);
 $router->post('/leads/reprocess', [App\Controllers\LeadsController::class, 'reprocess']);

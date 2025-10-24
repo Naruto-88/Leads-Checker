@@ -4,11 +4,21 @@
   <div>
     <form method="post" action="/action/fetch-now" class="d-inline js-loading-form"><!-- Fetch Now -->
       <?php echo Csrf::input(); ?>
+      <input type="hidden" name="return" value="/dashboard2">
       <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Fetching...">Fetch Now</button>
     </form>
     <form method="post" action="/action/run-filter" class="d-inline ms-2 js-loading-form"><!-- Run Filter -->
       <?php echo Csrf::input(); ?>
+      <input type="hidden" name="return" value="/dashboard2">
       <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
+    </form>
+    <form id="processAllFormD2" method="post" action="/action/run-filter-all" class="d-inline ms-2 js-loading-form"><!-- Process All -->
+      <?php echo Csrf::input(); ?>
+      <input type="hidden" name="return" value="/dashboard2">
+      <input type="hidden" name="all" value="1">
+      <input type="hidden" name="batch" value="500">
+      <input type="hidden" name="cap" value="5000">
+      <button class="btn btn-sm btn-warning js-loading-btn" data-loading-text="Processing...">Process All</button>
     </form>
     <?php
       $exportQs = ['status'=>'genuine','range'=>$range];
@@ -141,6 +151,32 @@ document.addEventListener('DOMContentLoaded', function(){
       btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' + (btn.getAttribute('data-loading-text')||'Working...');
     });
   });
+
+  // Progress polling for Process All
+  const formAll = document.getElementById('processAllFormD2');
+  if (formAll) {
+    formAll.addEventListener('submit', function () {
+      let info = document.getElementById('progressInfoD2');
+      if (!info) {
+        info = document.createElement('div');
+        info.className = 'small text-muted ms-2 d-inline-block';
+        info.id = 'progressInfoD2';
+        formAll.parentElement.appendChild(info);
+      }
+      const tick = async () => {
+        try {
+          const res = await fetch('/action/filter-progress', { headers: { 'Accept':'application/json' } });
+          if (!res.ok) return;
+          const j = await res.json();
+          if (j && (typeof j.processed !== 'undefined')) {
+            info.textContent = j.done ? `Done. Processed ${j.processed} of ${j.total}. Remaining: ${j.remaining ?? 0}.` : `Processing ${j.processed} of ${j.total}...`;
+            if (!j.done) { setTimeout(tick, 1000); }
+          }
+        } catch (e) {}
+      };
+      setTimeout(tick, 800);
+    });
+  }
 
   if (window.Chart && chartData && chartData.labels) {
     // Avoid multiple initializations if this script runs more than once
