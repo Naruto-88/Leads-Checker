@@ -26,22 +26,22 @@
 </div>
 
 <div class="mb-3">
-  <form method="post" action="/lead/reprocess" class="d-inline">
+  <form method="post" action="/lead/reprocess" class="d-inline" title="Re-run the filter on this lead">
     <?php echo Csrf::input(); ?>
     <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
-    <button class="btn btn-primary btn-sm">Re-process</button>
+    <button class="btn btn-primary btn-sm" data-bs-toggle="tooltip" title="Re-run the filter on this lead">Re-process</button>
   </form>
-  <form method="post" action="/lead/mark" class="d-inline ms-2">
+  <form method="post" action="/lead/mark" class="d-inline ms-2" title="Mark this lead as Genuine">
     <?php echo Csrf::input(); ?>
     <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
     <input type="hidden" name="status" value="genuine">
-    <button class="btn btn-success btn-sm">Mark Genuine</button>
+    <button class="btn btn-success btn-sm" data-bs-toggle="tooltip" title="Mark this lead as Genuine">Mark Genuine</button>
   </form>
-  <form method="post" action="/lead/mark" class="d-inline ms-2">
+  <form method="post" action="/lead/mark" class="d-inline ms-2" title="Mark this lead as Spam">
     <?php echo Csrf::input(); ?>
     <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
     <input type="hidden" name="status" value="spam">
-    <button class="btn btn-danger btn-sm">Mark Spam</button>
+    <button class="btn btn-danger btn-sm" data-bs-toggle="tooltip" title="Mark this lead as Spam">Mark Spam</button>
   </form>
 </div>
 

@@ -15,12 +15,12 @@
       <option value="desc" <?php echo ($sort==='desc'?'selected':''); ?>>Newest</option>
       <option value="asc" <?php echo ($sort==='asc'?'selected':''); ?>>Oldest</option>
     </select>
-    <button class="btn btn-sm btn-outline-secondary">Apply</button>
+    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply search and sort">Apply</button>
   </form>
   <form method="post" action="/action/fetch-now" class="js-loading-form">
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
-    <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Updating...">
+    <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Updating..." data-bs-toggle="tooltip" title="Fetch new emails from connected inboxes">
       Update Emails
     </button>
   </form>
@@ -30,7 +30,7 @@
     <input type="hidden" name="batch" value="500">
     <input type="hidden" name="all" value="1">
     <input type="hidden" name="cap" value="5000">
-    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
+    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
   </form>
   </div>
 </div>
@@ -43,13 +43,13 @@
       if (!empty($status)) { $clientBase['status'] = $status; }
       $totalBadge = (int)($genuineTotal ?? 0);
     ?>
-    <a class="btn btn-outline-secondary position-relative <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>">
+    <a class="btn btn-outline-secondary position-relative <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>" data-bs-toggle="tooltip" title="Show leads for all clients">
       All Clients
       <span class="badge rounded-pill bg-success client-badge"><?php echo $totalBadge; ?></span>
     </a>
     <?php foreach ($clients as $c): ?>
       <?php $cb = $clientBase; $cb['client'] = $c['shortcode']; $cnt = (int)($genuineCounts[$c['id']] ?? 0); ?>
-      <a class="btn btn-outline-secondary position-relative <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>">
+      <a class="btn btn-outline-secondary position-relative <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>" data-bs-toggle="tooltip" title="Show leads for client <?php echo Helpers::e($c['shortcode']); ?>">
         <?php echo Helpers::e($c['shortcode']); ?>
         <span class="badge rounded-pill bg-success client-badge"><?php echo $cnt; ?></span>
       </a>
@@ -69,16 +69,16 @@
   };
 ?>
 <div class="btn-group mb-3" role="group">
-  <?php echo $rangeLink('Last week','last_week'); ?>
-  <?php echo $rangeLink('Last 7 days','last_7'); ?>
-  <?php echo $rangeLink('Last month','last_month'); ?>
-  <?php echo $rangeLink('Last 30 days','last_30'); ?>
-  <?php echo $rangeLink('All time','all'); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last week\" ',$rangeLink('Last week','last_week')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last 7 days\" ',$rangeLink('Last 7 days','last_7')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last month\" ',$rangeLink('Last month','last_month')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last 30 days\" ',$rangeLink('Last 30 days','last_30')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show all time\" ',$rangeLink('All time','all')); ?>
   </div>
 
 <div class="d-flex justify-content-between mb-2">
   <div>
-    <a class="btn btn-sm btn-outline-success" href="/leads/export?status=genuine&range=<?php echo urlencode($range); ?>&q=<?php echo urlencode($q ?? ''); ?>&sort=<?php echo urlencode($sort); ?><?php if(!empty($activeClient)) echo '&client='.urlencode($activeClient); ?>">Export CSV (Genuine)</a>
+    <a class="btn btn-sm btn-outline-success" href="/leads/export?status=genuine&range=<?php echo urlencode($range); ?>&q=<?php echo urlencode($q ?? ''); ?>&sort=<?php echo urlencode($sort); ?><?php if(!empty($activeClient)) echo '&client='.urlencode($activeClient); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for current filters">Export CSV (Genuine)</a>
   </div>
   <form method="post" action="/leads/bulk" class="d-flex align-items-center flex-nowrap gap-2 bulk-actions">
     <?php echo App\Security\Csrf::input(); ?>
@@ -87,8 +87,8 @@
       <option value="mark_spam">Mark Spam</option>
       <option value="reprocess">Re-process</option>
     </select>
-    <button class="btn btn-sm btn-primary text-nowrap">Apply to selected</button>
-    <button type="button" class="btn btn-sm btn-outline-success text-nowrap" onclick="document.querySelectorAll('tr[data-status=genuine] input.rowcb').forEach(cb=>cb.checked=true)">Select all Genuine</button>
+    <button class="btn btn-sm btn-primary text-nowrap" data-bs-toggle="tooltip" title="Run the selected bulk action for checked leads">Apply to selected</button>
+    <button type="button" class="btn btn-sm btn-outline-success text-nowrap" onclick="document.querySelectorAll('tr[data-status=genuine] input.rowcb').forEach(cb=>cb.checked=true)" data-bs-toggle="tooltip" title="Select every lead currently marked Genuine on this page">Select all Genuine</button>
     <?php
       $baseQuery = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
       if (!empty($activeClient)) { $baseQuery['client'] = $activeClient; }
@@ -111,8 +111,8 @@
           $spamLabel = 'Show Spam only';
       }
     ?>
-    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="<?php echo $genUrl; ?>"><?php echo $genLabel; ?></a>
-    <a class="btn btn-sm btn-outline-danger text-nowrap" href="<?php echo $spamUrl; ?>"><?php echo $spamLabel; ?></a>
+    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="<?php echo $genUrl; ?>" data-bs-toggle="tooltip" title="Toggle Genuine filter"><?php echo $genLabel; ?></a>
+    <a class="btn btn-sm btn-outline-danger text-nowrap" href="<?php echo $spamUrl; ?>" data-bs-toggle="tooltip" title="Toggle Spam filter"><?php echo $spamLabel; ?></a>
   </form>
 </div>
 
@@ -122,7 +122,7 @@
   <table class="table table-sm align-middle" id="leadsTable">
     <thead>
       <tr>
-        <th style="width:24px;"><input type="checkbox" onclick="document.querySelectorAll('.rowcb').forEach(cb=>cb.checked=this.checked)"></th>
+         <th style="width:24px;"><input type="checkbox" onclick="document.querySelectorAll('.rowcb').forEach(cb=>cb.checked=this.checked)" title="Select/Deselect all on this page"></th>
         <th>Sender</th>
         <th>Subject</th>
         <th>Snippet</th>
@@ -146,7 +146,7 @@
 ?>
 <div class="d-flex justify-content-between align-items-center mt-2">
   <div class="text-muted small">Page <?php echo $current; ?> of <?php echo $pages; ?> • Total: <?php echo (int)($total ?? 0); ?></div>
-  <button id="loadMoreLeads" class="btn btn-sm btn-outline-secondary" <?php echo ($current >= $pages) ? 'disabled' : ''; ?>>Load more</button>
+      <button id="loadMoreLeads" class="btn btn-sm btn-outline-secondary" <?php echo ($current >= $pages) ? 'disabled' : ''; ?> data-bs-toggle="tooltip" title="Load the next page of results">Load more</button>
 </div>
 
 <!-- Lead modal -->
@@ -300,5 +300,10 @@ document.addEventListener('DOMContentLoaded', function () {
       btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' + text;
     });
   });
+  // Enable Bootstrap tooltips
+  try {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (el) { new bootstrap.Tooltip(el); });
+  } catch (e) {}
 });
 </script>

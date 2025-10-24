@@ -15,14 +15,13 @@
     <td><span class="badge bg-light text-dark"><?php echo Helpers::e($l['mode'] ?? ''); ?></span></td>
     <td class="text-nowrap">
       <div class="d-flex align-items-center gap-2">
-        <a href="#" data-id="<?php echo (int)$l['id']; ?>" class="btn btn-sm btn-outline-primary btn-view">View</a>
+        <a href="#" data-id="<?php echo (int)$l['id']; ?>" class="btn btn-sm btn-outline-primary btn-view" data-bs-toggle="tooltip" title="Open lead details">View</a>
         <form method="post" action="/leads/delete" class="d-inline" onsubmit="return confirm('Delete lead?');">
           <?php echo Csrf::input(); ?>
           <input type="hidden" name="id" value="<?php echo (int)$l['id']; ?>">
-          <button class="btn btn-sm btn-outline-danger">Delete</button>
+          <button class="btn btn-sm btn-outline-danger" data-bs-toggle="tooltip" title="Delete this lead">Delete</button>
         </form>
       </div>
     </td>
   </tr>
 <?php endforeach; ?>
-

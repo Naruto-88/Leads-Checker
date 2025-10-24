@@ -5,12 +5,12 @@
     <form method="post" action="/action/fetch-now" class="d-inline js-loading-form"><!-- Fetch Now -->
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="return" value="/dashboard2">
-      <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Fetching...">Fetch Now</button>
+      <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Fetching..." data-bs-toggle="tooltip" title="Fetch new emails from connected inboxes">Fetch Now</button>
     </form>
     <form method="post" action="/action/run-filter" class="d-inline ms-2 js-loading-form"><!-- Run Filter -->
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="return" value="/dashboard2">
-      <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
+      <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
     </form>
     <form id="processAllFormD2" method="post" action="/action/run-filter-all" class="d-inline ms-2 js-loading-form"><!-- Process All -->
       <?php echo Csrf::input(); ?>
@@ -18,13 +18,13 @@
       <input type="hidden" name="all" value="1">
       <input type="hidden" name="batch" value="500">
       <input type="hidden" name="cap" value="5000">
-      <button class="btn btn-sm btn-warning js-loading-btn" data-loading-text="Processing...">Process All</button>
+      <button class="btn btn-sm btn-warning js-loading-btn" data-loading-text="Processing..." data-bs-toggle="tooltip" title="Process the entire queue of unprocessed emails">Process All</button>
     </form>
     <?php
       $exportQs = ['status'=>'genuine','range'=>$range];
       if ($range==='custom') { $exportQs['start']=$start; $exportQs['end']=$end; }
     ?>
-    <a class="btn btn-sm btn-success ms-2" href="<?php echo '/leads/export?' . http_build_query($exportQs); ?>">Export CSV</a>
+    <a class="btn btn-sm btn-success ms-2" href="<?php echo '/leads/export?' . http_build_query($exportQs); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for the selected range">Export CSV</a>
   </div>
 </div>
 
@@ -35,7 +35,8 @@
       $rangeBtn = function($label,$val,$active){
         $cls = 'btn btn-sm ' . ($active ? 'btn-warning' : 'btn-outline-secondary');
         $url = '/dashboard2?range=' . urlencode($val);
-        return '<a class="'.$cls.'" href="'.$url.'">'.$label.'</a>';
+        $tip = 'Show ' . strtolower($label);
+        return '<a class="'.$cls.'" href="'.$url.'" data-bs-toggle="tooltip" title="'.htmlspecialchars($tip, ENT_QUOTES).'">'.$label.'</a>';
       };
       echo $rangeBtn('Last Week','last_week', $range==='last_week');
       echo $rangeBtn('Last 7 Days','last_7', $range==='last_7');
@@ -53,7 +54,7 @@
         <span class="input-group-text">End</span>
         <input class="form-control" type="date" name="end" value="<?php echo Helpers::e(substr($end,0,10)); ?>">
       </div>
-      <button class="btn btn-sm btn-outline-secondary">Apply</button>
+      <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply the custom date range">Apply</button>
     </form>
   </div>
 </div>
@@ -151,6 +152,12 @@ document.addEventListener('DOMContentLoaded', function(){
       btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>' + (btn.getAttribute('data-loading-text')||'Working...');
     });
   });
+
+  // Enable tooltips
+  try {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (el) { new bootstrap.Tooltip(el); });
+  } catch (e) {}
 
   // Progress polling for Process All
   const formAll = document.getElementById('processAllFormD2');

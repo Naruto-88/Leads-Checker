@@ -5,18 +5,18 @@
   <form class="d-flex" method="get" action="/emails">
     <input type="hidden" name="range" value="<?php echo Helpers::e($range); ?>">
     <input class="form-control form-control-sm me-2" type="search" placeholder="Search" name="q" value="<?php echo Helpers::e($q ?? ''); ?>">
-    <button class="btn btn-sm btn-outline-secondary">Apply</button>
+    <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply search to emails">Apply</button>
   </form>
   <form method="post" action="/action/fetch-now" class="js-loading-form">
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/emails'); ?>">
-    <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Updating...">Update Emails</button>
+    <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Updating..." data-bs-toggle="tooltip" title="Fetch new emails from connected inboxes">Update Emails</button>
   </form>
   <form method="post" action="/action/run-filter" class="js-loading-form ms-1">
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/emails'); ?>">
     <input type="hidden" name="batch" value="500">
-    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering...">Run Filter</button>
+    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
   </form>
   </div>
 </div>
@@ -24,20 +24,20 @@
 <?php if (!empty($clients)): ?>
 <div class="mb-2">
   <div class="btn-group btn-group-sm" role="group">
-    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="/emails?range=<?php echo urlencode($range); ?>">All Clients</a>
+    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="/emails?range=<?php echo urlencode($range); ?>" data-bs-toggle="tooltip" title="Show emails for all clients">All Clients</a>
     <?php foreach ($clients as $c): ?>
-      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="/emails?range=<?php echo urlencode($range); ?>&client=<?php echo urlencode($c['shortcode']); ?>"><?php echo App\Helpers::e($c['shortcode']); ?></a>
+      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="/emails?range=<?php echo urlencode($range); ?>&client=<?php echo urlencode($c['shortcode']); ?>" data-bs-toggle="tooltip" title="Show emails for client <?php echo App\Helpers::e($c['shortcode']); ?>"><?php echo App\Helpers::e($c['shortcode']); ?></a>
     <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>
 
 <div class="btn-group mb-3" role="group">
-  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_week">Last week</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_7">Last 7 days</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_month">Last month</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_30">Last 30 days</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=all">All time</a>
+  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_week" data-bs-toggle="tooltip" title="Show last week">Last week</a>
+  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_7" data-bs-toggle="tooltip" title="Show last 7 days">Last 7 days</a>
+  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_month" data-bs-toggle="tooltip" title="Show last month">Last month</a>
+  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=last_30" data-bs-toggle="tooltip" title="Show last 30 days">Last 30 days</a>
+  <a class="btn btn-outline-secondary btn-sm" href="/emails?range=all" data-bs-toggle="tooltip" title="Show all time">All time</a>
   </div>
 
 <div class="table-responsive">
@@ -62,7 +62,7 @@
 ?>
 <div class="d-flex justify-content-between align-items-center mt-2">
   <div class="text-muted small">Page <?php echo $current; ?> of <?php echo $pages; ?> • Total: <?php echo (int)($total ?? 0); ?></div>
-  <button id="loadMoreEmails" class="btn btn-sm btn-outline-secondary" <?php echo ($current >= $pages) ? 'disabled' : ''; ?>>Load more</button>
+  <button id="loadMoreEmails" class="btn btn-sm btn-outline-secondary" <?php echo ($current >= $pages) ? 'disabled' : ''; ?> data-bs-toggle="tooltip" title="Load the next page of results">Load more</button>
 </div>
 
 <script>
@@ -98,5 +98,10 @@ document.addEventListener('DOMContentLoaded', function () {
       if (shown >= total) { loadBtn.disabled = true; }
     });
   }
+  // Enable Bootstrap tooltips
+  try {
+    var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
+    tooltipTriggerList.forEach(function (el) { new bootstrap.Tooltip(el); });
+  } catch (e) {}
 });
 </script>
