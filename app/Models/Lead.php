@@ -159,4 +159,39 @@ class Lead
         $stmt->execute();
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
+
+    public static function genuineCountsByClient(int $userId, string $start, string $end): array
+    {
+        $sql = 'SELECT l.client_id, COUNT(*) AS cnt
+                FROM leads l
+                JOIN emails e ON e.id = l.email_id
+                WHERE l.user_id = :uid AND l.deleted_at IS NULL AND l.status = \'' . "genuine" . '\'
+                  AND e.received_at BETWEEN :start AND :end
+                GROUP BY l.client_id';
+        $stmt = DB::pdo()->prepare($sql);
+        $stmt->bindValue(':uid', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':start', $start, PDO::PARAM_STR);
+        $stmt->bindValue(':end', $end, PDO::PARAM_STR);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        $map = [];
+        foreach ($rows as $r) {
+            $cid = $r['client_id'] !== null ? (int)$r['client_id'] : 0;
+            $map[$cid] = (int)$r['cnt'];
+        }
+        return $map;
+    }
+
+    public static function genuineTotal(int $userId, string $start, string $end): int
+    {
+        $sql = 'SELECT COUNT(*) FROM leads l JOIN emails e ON e.id = l.email_id
+                WHERE l.user_id = :uid AND l.deleted_at IS NULL AND l.status = \'' . "genuine" . '\'
+                  AND e.received_at BETWEEN :start AND :end';
+        $stmt = DB::pdo()->prepare($sql);
+        $stmt->bindValue(':uid', $userId, PDO::PARAM_INT);
+        $stmt->bindValue(':start', $start, PDO::PARAM_STR);
+        $stmt->bindValue(':end', $end, PDO::PARAM_STR);
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
 }

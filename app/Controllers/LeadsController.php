@@ -32,6 +32,8 @@ class LeadsController
         $leads = Lead::listByUser($user['id'], $filters);
         $total = Lead::countByUser($user['id'], $filters);
         $clients = \App\Models\Client::listByUser($user['id']);
+        $genuineCounts = \App\Models\Lead::genuineCountsByClient($user['id'], $start, $end);
+        $genuineTotal = \App\Models\Lead::genuineTotal($user['id'], $start, $end);
         $data = [
             'leads' => $leads,
             'range' => $quick,
@@ -43,6 +45,8 @@ class LeadsController
             'clients' => $clients,
             'activeClient' => $clientCode,
             'status' => $status,
+            'genuineCounts' => $genuineCounts,
+            'genuineTotal' => $genuineTotal,
         ];
         $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
         if ($isPartial) {

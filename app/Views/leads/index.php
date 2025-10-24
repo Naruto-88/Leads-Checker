@@ -41,11 +41,18 @@
     <?php
       $clientBase = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
       if (!empty($status)) { $clientBase['status'] = $status; }
+      $totalBadge = (int)($genuineTotal ?? 0);
     ?>
-    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>">All Clients</a>
+    <a class="btn btn-outline-secondary position-relative <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>">
+      All Clients
+      <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success"><?php echo $totalBadge; ?></span>
+    </a>
     <?php foreach ($clients as $c): ?>
-      <?php $cb = $clientBase; $cb['client'] = $c['shortcode']; ?>
-      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>"><?php echo Helpers::e($c['shortcode']); ?></a>
+      <?php $cb = $clientBase; $cb['client'] = $c['shortcode']; $cnt = (int)($genuineCounts[$c['id']] ?? 0); ?>
+      <a class="btn btn-outline-secondary position-relative <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>">
+        <?php echo Helpers::e($c['shortcode']); ?>
+        <span class="position-absolute top-0 start-100 translate-middle badge rounded-pill bg-success"><?php echo $cnt; ?></span>
+      </a>
     <?php endforeach; ?>
   </div>
 </div>
