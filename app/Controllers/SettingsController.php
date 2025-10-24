@@ -34,7 +34,14 @@ class SettingsController
         $mode = in_array($_POST['filter_mode'] ?? 'algorithmic', ['algorithmic','gpt']) ? $_POST['filter_mode'] : 'algorithmic';
         $apiKey = trim($_POST['openai_api_key'] ?? '');
         $openaiEnc = $apiKey ? \App\Helpers::encryptSecret($apiKey, DB::env('APP_KEY','')) : null;
-        Setting::saveFilter(Auth::user()['id'], $mode, $openaiEnc);
+        $thrG = max(0, min(100, (int)($_POST['threshold_genuine'] ?? 70)));
+        $thrS = max(0, min(100, (int)($_POST['threshold_spam'] ?? 40)));
+        // store as comma-separated; allow multi-line too
+        $pos = trim((string)($_POST['pos_keywords'] ?? ''));
+        $neg = trim((string)($_POST['neg_keywords'] ?? ''));
+        $pos = $pos !== '' ? preg_replace('/[\r\n]+/', ',', $pos) : null;
+        $neg = $neg !== '' ? preg_replace('/[\r\n]+/', ',', $neg) : null;
+        Setting::saveFilter(Auth::user()['id'], $mode, $openaiEnc, $thrG, $thrS, $pos, $neg);
         Helpers::redirect('/settings');
     }
 
@@ -57,7 +64,7 @@ class SettingsController
             Helpers::redirect('/settings');
         }
         EmailAccount::create(Auth::user()['id'], $data);
-        Helpers::redirect('/settings');
+        Helpers::redirect('/settings?tab=imap');
     }
 
     public function deleteImap(): void
@@ -66,7 +73,34 @@ class SettingsController
         if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
         $id = (int)($_POST['id'] ?? 0);
         if ($id) { EmailAccount::delete(Auth::user()['id'], $id); }
-        Helpers::redirect('/settings');
+        Helpers::redirect('/settings?tab=imap');
+    }
+
+    public function updateImap(): void
+    {
+        Auth::requireLogin();
+        if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $id = (int)($_POST['id'] ?? 0);
+        if (!$id) { $_SESSION['flash'] = 'Missing account id'; Helpers::redirect('/settings?tab=imap'); }
+        $data = [
+            'label' => trim($_POST['label'] ?? ''),
+            'client_id' => ($_POST['client_id'] ?? '') !== '' ? (int)$_POST['client_id'] : null,
+            'imap_host' => trim($_POST['imap_host'] ?? ''),
+            'imap_port' => (int)($_POST['imap_port'] ?? 993),
+            'encryption' => in_array($_POST['encryption'] ?? 'ssl', ['ssl','tls','none']) ? $_POST['encryption'] : 'ssl',
+            'username' => trim($_POST['username'] ?? ''),
+            'folder' => trim($_POST['folder'] ?? 'INBOX'),
+        ];
+        $pwd = trim($_POST['password'] ?? '');
+        if ($pwd !== '') {
+            $data['password_enc'] = \App\Helpers::encryptSecret($pwd, DB::env('APP_KEY',''));
+        }
+        if (!$data['label'] || !$data['imap_host'] || !$data['username']) {
+            $_SESSION['flash'] = 'Missing required IMAP fields';
+            Helpers::redirect('/settings?tab=imap');
+        }
+        EmailAccount::update(Auth::user()['id'], $id, $data);
+        Helpers::redirect('/settings?tab=imap');
     }
 
     public function saveGeneral(): void
@@ -88,7 +122,8 @@ class SettingsController
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
         if (!$name || !$short) { $_SESSION['flash'] = 'Client name and shortcode required.'; Helpers::redirect('/settings'); }
         \App\Models\Client::create(Auth::user()['id'], $name, $website ?: null, $short);
-        Helpers::redirect('/settings');
+        // Stay on Clients tab after adding
+        Helpers::redirect('/settings?tab=clients');
     }
 
     public function deleteClient(): void
@@ -98,5 +133,66 @@ class SettingsController
         $id = (int)($_POST['id'] ?? 0);
         if ($id) { \App\Models\Client::delete(Auth::user()['id'], $id); }
         Helpers::redirect('/settings');
+    }
+
+    public function updateClient(): void
+    {
+        Auth::requireLogin();
+        if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $id = (int)($_POST['id'] ?? 0);
+        $name = trim($_POST['name'] ?? '');
+        $website = trim($_POST['website'] ?? '');
+        $short = strtoupper(trim($_POST['shortcode'] ?? ''));
+        if (!$id || !$name || !$short) {
+            $_SESSION['flash'] = 'Client id, name and shortcode are required.';
+            Helpers::redirect('/settings?tab=clients');
+        }
+        \App\Models\Client::update(Auth::user()['id'], $id, $name, $website ?: null, $short);
+        Helpers::redirect('/settings?tab=clients');
+    }
+
+    public function importClients(): void
+    {
+        Auth::requireLogin();
+        if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        if (!isset($_FILES['clients_csv']) || $_FILES['clients_csv']['error'] !== UPLOAD_ERR_OK) {
+            $_SESSION['flash'] = 'Please upload a CSV file.';
+            Helpers::redirect('/settings?tab=clients');
+        }
+        $tmp = $_FILES['clients_csv']['tmp_name'];
+        $rows = [];
+        if (($h = fopen($tmp, 'r')) !== false) {
+            $first = true; $headers = [];
+            while (($data = fgetcsv($h)) !== false) {
+                if ($first) {
+                    $first = false;
+                    // Detect header row if strings
+                    $lower = array_map(fn($v)=>strtolower(trim((string)$v)), $data);
+                    if (in_array('name', $lower) || in_array('shortcode', $lower)) {
+                        $headers = $lower; // has header
+                        continue;
+                    } else {
+                        // No header; fall through using fixed positions
+                        $headers = ['name','website','shortcode'];
+                    }
+                }
+                $row = [];
+                foreach ($headers as $i=>$key) { $row[$key] = $data[$i] ?? null; }
+                $name = trim((string)($row['name'] ?? ''));
+                $website = trim((string)($row['website'] ?? '')) ?: null;
+                $short = strtoupper(trim((string)($row['shortcode'] ?? '')));
+                if ($name && $short) {
+                    $rows[] = ['name'=>$name, 'website'=>$website, 'shortcode'=>$short];
+                }
+            }
+            fclose($h);
+        }
+        if (!$rows) {
+            $_SESSION['flash'] = 'No valid rows found in CSV.';
+            Helpers::redirect('/settings?tab=clients');
+        }
+        \App\Models\Client::bulkImport(Auth::user()['id'], $rows);
+        $_SESSION['flash'] = 'Imported ' . count($rows) . ' clients (existing shortcodes updated).';
+        Helpers::redirect('/settings?tab=clients');
     }
 }

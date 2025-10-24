@@ -49,8 +49,13 @@ class DashboardController
         $msg = 'Fetched ' . $res['fetched'] . ' emails';
         if (!empty($res['errors'])) {
             $msg .= ' (errors: ' . count($res['errors']) . ')';
+            $msg .= '. Example: ' . substr((string)$res['errors'][0], 0, 180);
         }
         $_SESSION['flash'] = $msg;
+        $return = trim($_POST['return'] ?? '');
+        if ($return && str_starts_with($return, '/')) {
+            Helpers::redirect($return);
+        }
         Helpers::redirect('/');
     }
 
@@ -61,28 +66,105 @@ class DashboardController
         $user = Auth::user();
         $settings = \App\Models\Setting::getByUser($user['id']);
         $pdo = DB::pdo();
-        $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT 20');
-        $stmt->execute([$user['id']]);
-        $emails = $stmt->fetchAll(\PDO::FETCH_ASSOC);
-
+        $batch = (int)($_POST['batch'] ?? 0);
+        if ($batch <= 0) { $batch = 500; }
+        $all = !empty($_POST['all']);
+        $cap = max($batch, (int)($_POST['cap'] ?? $batch));
         $processed = 0;
+        $fetchBatch = function(int $limit) use ($pdo, $user) {
+            $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+            $stmt->execute([$user['id']]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        };
+        $emails = $fetchBatch($batch);
         $mode = $settings['filter_mode'] ?? 'algorithmic';
         $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
         $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
-        foreach ($emails as $em) {
-            if (empty($em['client_id'])) {
-                $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
-                if ($assign['client_id']) {
-                    \App\Models\Email::updateClient((int)$em['id'], (int)$assign['client_id']);
-                    $em['client_id'] = (int)$assign['client_id'];
+        $processEmails = function(array $list) use (&$processed, $client, $user) {
+            foreach ($list as $em) {
+                if (empty($em['client_id'])) {
+                    $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
+                    if ($assign['client_id']) {
+                        \App\Models\Email::updateClient((int)$em['id'], (int)$assign['client_id']);
+                        $em['client_id'] = (int)$assign['client_id'];
+                    }
                 }
+                $res = $client ? $client->classify($em) : LeadScorer::compute($em);
+                $leadId = Lead::upsertFromEmail($em, $res);
+                Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+                $processed++;
             }
-            $res = $client ? $client->classify($em) : LeadScorer::compute($em);
-            $leadId = Lead::upsertFromEmail($em, $res);
-            Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
-            $processed++;
+        };
+
+        $processEmails($emails);
+        if ($all) {
+            @set_time_limit(300);
+            while ($processed < $cap) {
+                $next = $fetchBatch($batch);
+                if (!$next) break;
+                $processEmails($next);
+            }
         }
         $_SESSION['flash'] = 'Processed ' . $processed . ' emails.';
+        $return = trim($_POST['return'] ?? '');
+        if ($return && str_starts_with($return, '/')) {
+            Helpers::redirect($return);
+        }
+        Helpers::redirect('/');
+    }
+
+    public function runFilterAll(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        @set_time_limit(300);
+        $user = Auth::user();
+        $pdo = DB::pdo();
+
+        $settings = \App\Models\Setting::getByUser($user['id']);
+        $mode = $settings['filter_mode'] ?? 'algorithmic';
+        $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
+        $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
+
+        $batch = max(100, (int)($_POST['batch'] ?? 500));
+        $cap = max($batch, (int)($_POST['cap'] ?? 5000));
+        $processed = 0; $loops = 0;
+
+        $fetchBatch = function(int $limit) use ($pdo, $user) {
+            $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+            $stmt->execute([$user['id']]);
+            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
+        };
+
+        while ($processed < $cap) {
+            $emails = $fetchBatch($batch);
+            if (!$emails) break;
+            foreach ($emails as $em) {
+                if (empty($em['client_id'])) {
+                    $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
+                    if ($assign['client_id']) {
+                        \App\Models\Email::updateClient((int)$em['id'], (int)$assign['client_id']);
+                        $em['client_id'] = (int)$assign['client_id'];
+                    }
+                }
+                $res = $client ? $client->classify($em) : LeadScorer::compute($em);
+                $leadId = Lead::upsertFromEmail($em, $res);
+                Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+                $processed++;
+                if ($processed >= $cap) { break; }
+            }
+            $loops++;
+        }
+
+        $qStmt = $pdo->prepare('SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND (l.id IS NULL OR l.status="unknown")');
+        $qStmt->execute([$user['id']]);
+        $remaining = (int)$qStmt->fetchColumn();
+
+        $_SESSION['flash'] = 'Processed ' . $processed . ' emails in ' . $loops . ' pass(es). Remaining queue: ' . $remaining . '.';
+        $return = trim($_POST['return'] ?? '');
+        if ($return && str_starts_with($return, '/')) {
+            Helpers::redirect($return);
+        }
         Helpers::redirect('/');
     }
 }

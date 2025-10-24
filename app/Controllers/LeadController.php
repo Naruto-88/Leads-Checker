@@ -20,7 +20,13 @@ class LeadController
         $lead = Lead::findWithEmail(Auth::user()['id'], $leadId);
         if (!$lead) { http_response_code(404); echo 'Lead not found'; return; }
         $checks = Lead::checks($leadId);
-        View::render('lead/view', ['lead'=>$lead, 'checks'=>$checks]);
+        $isPartial = isset($_GET['partial'])
+            || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH']) === 'xmlhttprequest');
+        if ($isPartial) {
+            View::partial('lead/view', ['lead'=>$lead, 'checks'=>$checks]);
+        } else {
+            View::render('lead/view', ['lead'=>$lead, 'checks'=>$checks]);
+        }
     }
 
     public function reprocess(): void

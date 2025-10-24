@@ -63,6 +63,31 @@ class Lead
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public static function countByUser(int $userId, array $opts = []): int
+    {
+        $sql = 'SELECT COUNT(*) FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.user_id = :uid AND l.deleted_at IS NULL';
+        $params = ['uid'=>$userId];
+        if (!empty($opts['client_id'])) {
+            $sql .= ' AND l.client_id = :client_id';
+            $params['client_id'] = (int)$opts['client_id'];
+        }
+        if (!empty($opts['search'])) {
+            $sql .= ' AND (e.subject LIKE :q OR e.from_email LIKE :q OR e.body_plain LIKE :q)';
+            $params['q'] = '%' . $opts['search'] . '%';
+        }
+        if (!empty($opts['start']) && !empty($opts['end'])) {
+            $sql .= ' AND e.received_at BETWEEN :start AND :end';
+            $params['start'] = $opts['start'];
+            $params['end'] = $opts['end'];
+        }
+        $stmt = DB::pdo()->prepare($sql);
+        foreach ($params as $k=>$v) {
+            $stmt->bindValue(':' . $k, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
     public static function findWithEmail(int $userId, int $leadId): ?array
     {
         $stmt = DB::pdo()->prepare('SELECT l.*, e.* FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.id = ? AND l.user_id = ? AND l.deleted_at IS NULL');

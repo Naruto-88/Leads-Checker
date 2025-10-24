@@ -11,8 +11,28 @@ class LeadScorer
 
         $score = 50; $reasons = [];
 
+        // Load user-specific settings if available
+        $thrGenuine = 70; $thrSpam = 40; $userPos = []; $userNeg = [];
+        try {
+            if (!empty($email['user_id'])) {
+                $settings = \App\Models\Setting::getByUser((int)$email['user_id']);
+                $thrGenuine = max(0, min(100, (int)($settings['filter_threshold_genuine'] ?? 70)));
+                $thrSpam = max(0, min(100, (int)($settings['filter_threshold_spam'] ?? 40)));
+                if (!empty($settings['filter_pos_keywords'])) {
+                    $userPos = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$settings['filter_pos_keywords']))));
+                }
+                if (!empty($settings['filter_neg_keywords'])) {
+                    $userNeg = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$settings['filter_neg_keywords']))));
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore and keep defaults
+        }
+
         // Positive signals
-        $phrases = ['quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation'];
+        $phrases = array_unique(array_filter(array_merge([
+            'quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation','demo','trial','meeting','schedule','availability'
+        ], $userPos)));
         foreach ($phrases as $p) {
             if (str_contains($subject, $p) || str_contains($body, $p)) {
                 $score += 8; $reasons[] = "+phrase:$p"; break;
@@ -23,7 +43,9 @@ class LeadScorer
         if (preg_match('/^[A-Z][a-z]+\s[A-Z][a-z]+$/', $email['from_name'] ?? '')) { $score += 4; $reasons[] = '+human_name'; }
 
         // Negative signals
-        $negKeywords = ['crypto','casino','guest post','backlinks','seo offers','viagra','loan approval','porn','betting','win big'];
+        $negKeywords = array_unique(array_filter(array_merge([
+            'crypto','casino','guest post','backlinks','seo offers','viagra','loan approval','porn','betting','win big','adult','escort','blackhat','mlm'
+        ], $userNeg)));
         foreach ($negKeywords as $k) {
             if (str_contains($subject, $k) || str_contains($body, $k)) { $score -= 15; $reasons[] = "-keyword:$k"; }
         }
@@ -41,8 +63,8 @@ class LeadScorer
 
         $score = max(0, min(100, $score));
         $status = 'unknown';
-        if ($score >= 70) $status = 'genuine';
-        elseif ($score <= 40) $status = 'spam';
+        if ($score >= $thrGenuine) $status = 'genuine';
+        elseif ($score <= $thrSpam) $status = 'spam';
 
         return [
             'score' => (int)$score,

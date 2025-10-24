@@ -33,4 +33,27 @@ class EmailAccount
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
     }
+
+    public static function update(int $userId, int $id, array $data): void
+    {
+        $fields = [
+            'client_id' => $data['client_id'] ?? null,
+            'label' => $data['label'],
+            'imap_host' => $data['imap_host'],
+            'imap_port' => (int)($data['imap_port'] ?? 993),
+            'encryption' => $data['encryption'],
+            'username' => $data['username'],
+            'folder' => $data['folder'] ?? 'INBOX',
+        ];
+        $sql = 'UPDATE email_accounts SET client_id = :client_id, label = :label, imap_host = :imap_host, imap_port = :imap_port, encryption = :encryption, username = :username, folder = :folder';
+        if (!empty($data['password_enc'])) {
+            $sql .= ', password_enc = :password_enc';
+            $fields['password_enc'] = $data['password_enc'];
+        }
+        $sql .= ' WHERE id = :id AND user_id = :user_id';
+        $stmt = DB::pdo()->prepare($sql);
+        $fields['id'] = $id;
+        $fields['user_id'] = $userId;
+        $stmt->execute($fields);
+    }
 }

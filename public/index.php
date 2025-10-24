@@ -97,5 +97,12 @@ $router->get('/cron/process', [App\Controllers\CronController::class, 'process']
 $router->post('/action/fetch-now', [App\Controllers\DashboardController::class, 'fetchNow']);
 $router->post('/action/run-filter', [App\Controllers\DashboardController::class, 'runFilter']);
 
+$router->post('/settings/update-client', [App\Controllers\SettingsController::class, 'updateClient']);
+
+// Extra routes
+$router->post('/settings/update-imap', [App\Controllers\SettingsController::class, 'updateImap']);
+
+$router->post('/settings/import-clients', [App\Controllers\SettingsController::class, 'importClients']);
+
 // Dispatch
 $router->dispatch();

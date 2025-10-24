@@ -24,19 +24,29 @@ class LeadsController
         $settings = \App\Models\Setting::getByUser($user['id']);
         $limit = (int)($settings['page_size'] ?? 25);
         $offset = ($page-1)*$limit;
-        $leads = Lead::listByUser($user['id'], [
+        $filters = [
             'start'=>$start,'end'=>$end,'search'=>$search,'limit'=>$limit,'offset'=>$offset,'sort'=>$sort,'client_id'=>$client['id'] ?? null
-        ]);
+        ];
+        $leads = Lead::listByUser($user['id'], $filters);
+        $total = Lead::countByUser($user['id'], $filters);
         $clients = \App\Models\Client::listByUser($user['id']);
-        View::render('leads/index', [
+        $data = [
             'leads' => $leads,
             'range' => $quick,
             'q' => $search,
             'sort' => $sort,
             'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
             'clients' => $clients,
             'activeClient' => $clientCode,
-        ]);
+        ];
+        $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
+        if ($isPartial) {
+            \App\Core\View::partial('leads/_rows', $data);
+            return;
+        }
+        View::render('leads/index', $data);
     }
 
     public function reprocess(): void

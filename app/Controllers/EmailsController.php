@@ -23,18 +23,28 @@ class EmailsController
         $settings = \App\Models\Setting::getByUser($userId);
         $limit = (int)($settings['page_size'] ?? 25);
         $offset = ($page-1)*$limit;
-        $emails = Email::listByUser($userId, [
+        $filters = [
             'start'=>$start,'end'=>$end,'search'=>$search,'limit'=>$limit,'offset'=>$offset,'client_id'=>$client['id'] ?? null
-        ]);
+        ];
+        $emails = Email::listByUser($userId, $filters);
+        $total = Email::countByUser($userId, $filters);
         $clients = \App\Models\Client::listByUser($userId);
-        View::render('emails/index', [
+        $data = [
             'emails' => $emails,
             'range' => $quick,
             'q' => $search,
             'page' => $page,
+            'limit' => $limit,
+            'total' => $total,
             'clients' => $clients,
             'activeClient' => $clientCode,
-        ]);
+        ];
+        $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
+        if ($isPartial) {
+            \App\Core\View::partial('emails/_rows', $data);
+            return;
+        }
+        View::render('emails/index', $data);
     }
 
     public function processSelected(): void

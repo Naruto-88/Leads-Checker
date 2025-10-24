@@ -104,5 +104,15 @@ class Installer
         if (!$cols) { $pdo->exec("ALTER TABLE users ADD COLUMN deleted_at DATETIME NULL AFTER last_login_at"); }
         $cols = $pdo->query("SHOW COLUMNS FROM leads LIKE 'deleted_at'")->fetch();
         if (!$cols) { $pdo->exec("ALTER TABLE leads ADD COLUMN deleted_at DATETIME NULL AFTER updated_at"); }
+
+        // Extend settings with filter tuning fields
+        $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_threshold_genuine'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_threshold_genuine INT NOT NULL DEFAULT 70 AFTER filter_mode"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_threshold_spam'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_threshold_spam INT NOT NULL DEFAULT 40 AFTER filter_threshold_genuine"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_pos_keywords'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_pos_keywords TEXT NULL AFTER filter_threshold_spam"); }
+        $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_neg_keywords'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_neg_keywords TEXT NULL AFTER filter_pos_keywords"); }
     }
 }

@@ -47,7 +47,7 @@ class CronController
             $mode = $settings['filter_mode'] ?? 'algorithmic';
             $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
             $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
-            $stmt = DB::pdo()->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT 20');
+            $stmt = DB::pdo()->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT 500');
             $stmt->execute([(int)$u['id']]);
             $emails = $stmt->fetchAll(\PDO::FETCH_ASSOC);
             foreach ($emails as $em) {

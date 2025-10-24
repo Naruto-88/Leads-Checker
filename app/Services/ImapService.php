@@ -18,6 +18,10 @@ class ImapService
                 $count += self::fetchFromAccount($userId, $acc, $daysBack, $limit);
             } catch (\Throwable $e) {
                 $errors[] = $e->getMessage();
+                $dir = BASE_PATH . '/storage/logs';
+                if (!is_dir($dir)) @mkdir($dir, 0775, true);
+                $line = sprintf("%s [imap.fetch] account_id=%s error=%s\n", date('c'), $acc['id'] ?? 'unknown', $e->getMessage());
+                @file_put_contents($dir . '/app.log', $line, FILE_APPEND);
             }
         }
         return ['fetched'=>$count, 'errors'=>$errors];
@@ -30,7 +34,8 @@ class ImapService
         }
         $encPass = $acc['password_enc'];
         $password = \App\Helpers::decryptSecret($encPass, DB::env('APP_KEY','')) ?? '';
-        $mailbox = sprintf('{%s:%d/imap/%s}%s', $acc['imap_host'], (int)$acc['imap_port'], $acc['encryption'] === 'ssl' ? 'ssl' : ($acc['encryption']==='tls'?'tls':'notls'), $acc['folder'] ?: 'INBOX');
+        $transport = $acc['encryption'] === 'ssl' ? 'ssl' : ($acc['encryption']==='tls' ? 'tls' : 'notls');
+        $mailbox = sprintf('{%s:%d/imap/%s/novalidate-cert}%s', $acc['imap_host'], (int)$acc['imap_port'], $transport, $acc['folder'] ?: 'INBOX');
         $inbox = @imap_open($mailbox, $acc['username'], $password, 0, 1, ['DISABLE_AUTHENTICATOR' => 'GSSAPI']);
         if (!$inbox) {
             throw new \RuntimeException('IMAP connect failed: ' . imap_last_error());

@@ -58,6 +58,31 @@ class Email
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
     }
 
+    public static function countByUser(int $userId, array $opts = []): int
+    {
+        $sql = 'SELECT COUNT(*) FROM emails WHERE user_id = :uid';
+        $params = ['uid'=>$userId];
+        if (!empty($opts['client_id'])) {
+            $sql .= ' AND client_id = :client_id';
+            $params['client_id'] = (int)$opts['client_id'];
+        }
+        if (!empty($opts['search'])) {
+            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q)';
+            $params['q'] = '%' . $opts['search'] . '%';
+        }
+        if (!empty($opts['start']) && !empty($opts['end'])) {
+            $sql .= ' AND received_at BETWEEN :start AND :end';
+            $params['start'] = $opts['start'];
+            $params['end'] = $opts['end'];
+        }
+        $stmt = DB::pdo()->prepare($sql);
+        foreach ($params as $k=>$v) {
+            $stmt->bindValue(':' . $k, $v, is_int($v) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->execute();
+        return (int)$stmt->fetchColumn();
+    }
+
     public static function find(int $userId, int $id): ?array
     {
         $stmt = DB::pdo()->prepare('SELECT * FROM emails WHERE id = ? AND user_id = ?');
