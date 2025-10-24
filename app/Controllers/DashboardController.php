@@ -63,6 +63,9 @@ class DashboardController
     {
         Auth::requireLogin();
         if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        if (!class_exists('App\\Services\\LeadScorer')) {
+            require_once BASE_PATH . '/app/Services/LeadScorer.php';
+        }
         $user = Auth::user();
         $settings = \App\Models\Setting::getByUser($user['id']);
         $pdo = DB::pdo();
@@ -96,7 +99,7 @@ class DashboardController
                         $em['client_id'] = (int)$assign['client_id'];
                     }
                 }
-                $res = $client ? $client->classify($em) : LeadScorer::compute($em);
+                $res = $client ? $client->classify($em) : \App\Services\LeadScorer::compute($em);
                 $leadId = Lead::upsertFromEmail($em, $res);
                 Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
                 $processed++;
@@ -125,6 +128,9 @@ class DashboardController
         Auth::requireLogin();
         if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
         @set_time_limit(300);
+        if (!class_exists('App\\Services\\LeadScorer')) {
+            require_once BASE_PATH . '/app/Services/LeadScorer.php';
+        }
         $user = Auth::user();
         $pdo = DB::pdo();
 
@@ -164,7 +170,7 @@ class DashboardController
                         $em['client_id'] = (int)$assign['client_id'];
                     }
                 }
-                $res = $client ? $client->classify($em) : LeadScorer::compute($em);
+                $res = $client ? $client->classify($em) : \App\Services\LeadScorer::compute($em);
                 $leadId = Lead::upsertFromEmail($em, $res);
                 Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
                 $processed++;

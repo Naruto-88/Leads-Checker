@@ -70,16 +70,27 @@
     <?php
       $baseQuery = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
       if (!empty($activeClient)) { $baseQuery['client'] = $activeClient; }
+      // Genuine toggle
       if (!empty($status) && $status === 'genuine') {
-          $toggleUrl = '/leads?' . http_build_query($baseQuery);
-          $toggleLabel = 'Show All';
+          $genUrl = '/leads?' . http_build_query($baseQuery);
+          $genLabel = 'Show All';
       } else {
-          $toggleQuery = $baseQuery; $toggleQuery['status'] = 'genuine';
-          $toggleUrl = '/leads?' . http_build_query($toggleQuery);
-          $toggleLabel = 'Show Genuine only';
+          $genQuery = $baseQuery; $genQuery['status'] = 'genuine';
+          $genUrl = '/leads?' . http_build_query($genQuery);
+          $genLabel = 'Show Genuine only';
+      }
+      // Spam toggle
+      if (!empty($status) && $status === 'spam') {
+          $spamUrl = '/leads?' . http_build_query($baseQuery);
+          $spamLabel = 'Show All';
+      } else {
+          $spamQuery = $baseQuery; $spamQuery['status'] = 'spam';
+          $spamUrl = '/leads?' . http_build_query($spamQuery);
+          $spamLabel = 'Show Spam only';
       }
     ?>
-    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="<?php echo $toggleUrl; ?>"><?php echo $toggleLabel; ?></a>
+    <a class="btn btn-sm btn-outline-secondary text-nowrap" href="<?php echo $genUrl; ?>"><?php echo $genLabel; ?></a>
+    <a class="btn btn-sm btn-outline-danger text-nowrap" href="<?php echo $spamUrl; ?>"><?php echo $spamLabel; ?></a>
   </form>
 </div>
 
