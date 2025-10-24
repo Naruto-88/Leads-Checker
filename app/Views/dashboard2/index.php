@@ -14,6 +14,7 @@
   </div>
 </div>
 
+<div class="dashboard2">
 <div class="card p-2 mb-3">
   <div class="d-flex align-items-center gap-2 flex-wrap">
     <?php
@@ -53,14 +54,14 @@
 </div>
 
 <div class="row g-3 mb-3">
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Leads Over Time</h6><canvas id="chartLines" height="140"></canvas></div></div></div>
-  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Status Split</h6><canvas id="chartPie" height="140"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Leads Over Time</h6><canvas id="chartLines" height="110"></canvas></div></div></div>
+  <div class="col-md-6"><div class="card shadow-sm"><div class="card-body"><h6 class="text-muted">Status Split</h6><canvas id="chartPie" height="110"></canvas></div></div></div>
 </div>
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
     <h6 class="text-muted mb-3">Top Sender Domains</h6>
-    <canvas id="chartDomains" height="160"></canvas>
+    <canvas id="chartDomains" height="120"></canvas>
   </div>
  </div>
 
@@ -91,6 +92,7 @@
     </div>
   </div>
 </div>
+
 
 <div class="card shadow-sm mb-3">
   <div class="card-body">
@@ -146,26 +148,32 @@ document.addEventListener('DOMContentLoaded', function(){
           { label: 'spam', data: chartData.spam, borderColor: '#dc3545', backgroundColor: 'rgba(220,53,69,.15)', tension:.25, fill:true },
           { label: 'unknown', data: chartData.unknown, borderColor: '#6c757d', backgroundColor: 'rgba(108,117,125,.15)', tension:.25, fill:true }
         ]
-      }, options: { plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
+      }, options: { maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } }, scales:{ y:{ beginAtZero:true } } }
     });
 
     new Chart(document.getElementById('chartPie'), {
-      type: 'pie', data: { labels:['genuine','spam','unknown'], datasets:[{ data:[statusSplit.genuine||0,statusSplit.spam||0,statusSplit.unknown||0], backgroundColor:['#28a745','#dc3545','#6c757d'] }] }, options:{ plugins:{ legend:{ position:'bottom' } } }
+      type: 'pie', data: { labels:['genuine','spam','unknown'], datasets:[{ data:[statusSplit.genuine||0,statusSplit.spam||0,statusSplit.unknown||0], backgroundColor:['#28a745','#dc3545','#6c757d'] }] }, options:{ maintainAspectRatio:false, plugins:{ legend:{ position:'bottom' } } }
     });
 
     new Chart(document.getElementById('chartDomains'), {
-      type: 'bar', data: { labels: (domains||[]).map(d=>d.dom), datasets:[{ label:'emails', data:(domains||[]).map(d=>+d.c), backgroundColor:'#3b82f6' }] }, options:{ indexAxis:'x', scales:{ y:{ beginAtZero:true } } }
+      type: 'bar', data: { labels: (domains||[]).map(d=>d.dom), datasets:[{ label:'emails', data:(domains||[]).map(d=>+d.c), backgroundColor:'#3b82f6' }] }, options:{ maintainAspectRatio:false, indexAxis:'x', scales:{ y:{ beginAtZero:true } } }
     });
   }
 });
 </script>
 
 <style>
-.stat-card .card-body { padding: 1rem 1.25rem; }
+.dashboard2 .row.g-3 { --bs-gutter-x: .75rem; --bs-gutter-y: .75rem; }
+.dashboard2 .card .card-body { padding: .75rem .9rem; }
+.dashboard2 .stat-card .card-body { padding: .6rem .8rem; }
+.dashboard2 .stat-card .display-6 { font-size: 1.5rem; }
+.dashboard2 .stat-card .small { font-size: .75rem; }
+.dashboard2 .table { font-size: .9rem; }
+.dashboard2 .btn, .dashboard2 .input-group-text, .dashboard2 .form-control { padding: .25rem .5rem; font-size: .85rem; }
+.dashboard2 h6 { font-size: .95rem; margin-bottom: .4rem; }
 .stat-blue   { background: linear-gradient(180deg,#e8f0ff, #f6f9ff); }
 .stat-purple { background: linear-gradient(180deg,#f0e8ff, #faf6ff); }
 .stat-green  { background: linear-gradient(180deg,#e8fff0, #f6fffa); }
 .stat-red    { background: linear-gradient(180deg,#ffe8e8, #fff6f6); }
 .stat-amber  { background: linear-gradient(180deg,#fff6e5, #fffaf0); }
 </style>
-
