@@ -28,18 +28,18 @@
 <div class="mb-3">
   <form method="post" action="/lead/reprocess" class="d-inline">
     <?php echo Csrf::input(); ?>
-    <input type="hidden" name="id" value="<?php echo (int)$lead['id']; ?>">
+    <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
     <button class="btn btn-primary btn-sm">Re-process</button>
   </form>
   <form method="post" action="/lead/mark" class="d-inline ms-2">
     <?php echo Csrf::input(); ?>
-    <input type="hidden" name="id" value="<?php echo (int)$lead['id']; ?>">
+    <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
     <input type="hidden" name="status" value="genuine">
     <button class="btn btn-success btn-sm">Mark Genuine</button>
   </form>
   <form method="post" action="/lead/mark" class="d-inline ms-2">
     <?php echo Csrf::input(); ?>
-    <input type="hidden" name="id" value="<?php echo (int)$lead['id']; ?>">
+    <input type="hidden" name="id" value="<?php echo (int)($lead['lead_id'] ?? $lead['id']); ?>">
     <input type="hidden" name="status" value="spam">
     <button class="btn btn-danger btn-sm">Mark Spam</button>
   </form>

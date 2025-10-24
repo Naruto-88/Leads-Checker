@@ -56,7 +56,7 @@ class LeadController
             echo json_encode([
                 'ok' => true,
                 'lead' => [
-                    'id' => (int)$updated['id'],
+                    'id' => (int)($updated['lead_id'] ?? $leadId),
                     'status' => $updated['status'],
                     'score' => (int)$updated['score'],
                     'mode' => (string)($updated['mode'] ?? ''),
@@ -85,7 +85,7 @@ class LeadController
             echo json_encode([
                 'ok' => true,
                 'lead' => [
-                    'id' => (int)$updated['id'],
+                    'id' => (int)($updated['lead_id'] ?? $leadId),
                     'status' => $updated['status'],
                     'score' => (int)$updated['score'],
                     'mode' => (string)($updated['mode'] ?? ''),

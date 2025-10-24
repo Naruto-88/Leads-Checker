@@ -98,7 +98,12 @@ class Lead
 
     public static function findWithEmail(int $userId, int $leadId): ?array
     {
-        $stmt = DB::pdo()->prepare('SELECT l.*, e.* FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.id = ? AND l.user_id = ? AND l.deleted_at IS NULL');
+        // Alias lead id to avoid collision with email id; keep email id as 'id'.
+        $sql = 'SELECT l.id AS lead_id, l.*, e.*
+                FROM leads l
+                JOIN emails e ON e.id = l.email_id
+                WHERE l.id = ? AND l.user_id = ? AND l.deleted_at IS NULL';
+        $stmt = DB::pdo()->prepare($sql);
         $stmt->execute([$leadId, $userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
         return $row ?: null;
