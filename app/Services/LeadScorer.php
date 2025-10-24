@@ -63,9 +63,7 @@ class LeadScorer
         if (substr_count($body, '?') >= 1 && substr_count($body, '?') <= 5) { $score += 6; $reasons[] = '+question'; }
         if (preg_match('/^[A-Z][a-z]+\s[A-Z][a-z]+$/', $email['from_name'] ?? '')) { $score += 4; $reasons[] = '+human_name'; }
 
-        // If any user/client-defined negative keyword matches, force spam
-        foreach ([$userNeg => 'user', $clientNeg => 'client'] as $list => $src) {}
-        // Above empty loop is placeholder to allow PHP syntax highlighting in editors; real logic below
+        // Force spam on user/client negative keywords
         $forcedSpam = false; $forcedReason = null;
         foreach ($userNeg as $kw) {
             $kw = trim((string)$kw); if ($kw==='') continue;
@@ -88,12 +86,11 @@ class LeadScorer
             ];
         }
 
-        // Negative signals (defaults + any remaining)
+        // Negative signals
         $negKeywords = array_unique(array_filter(array_merge([
             'crypto','casino','guest post','backlinks','seo offers','viagra','loan approval','porn','betting','win big','adult','escort','blackhat','mlm'
         ], $userNeg, $clientNeg)));
         $negHits = 0; $hardHit = false;
-        // Hard negatives (strong marketing/spam patterns)
         $hardNeg = [
             'traffic','increase traffic','drive traffic','website traffic','targeted traffic','organic traffic',
             'guaranteed ranking','seo service','domain authority','da','pa','link building','guest post','backlinks'
@@ -111,7 +108,6 @@ class LeadScorer
                 $hardHit = true; $score -= 20; $reasons[] = "-hard:$hk";
             }
         }
-        // Heuristics typical to marketing/spam
         if (preg_match('/unsubscribe|opt\s?out/i', $body)) { $score -= 8; $reasons[] = '-unsubscribe'; }
         $links = preg_match_all('/https?:\/\//i', $body);
         if ($links >= 3) { $score -= 10; $reasons[] = '-many_links'; }
@@ -119,24 +115,20 @@ class LeadScorer
         if (strlen(strip_tags($email['body_html'] ?? '')) < 0.3 * strlen($email['body_html'] ?? '')) { $score -= 6; $reasons[] = '-high_html_ratio'; }
         if (preg_match('/\b(noreply|no-reply)@/i', $from)) { $score -= 8; $reasons[] = '-noreply'; }
 
-        // Disposable domains blocklist (tiny list shipped)
         $disposable = ['mailinator.com','10minutemail.com','guerrillamail.com'];
         foreach ($disposable as $dom) {
             if (str_ends_with($from, '@'.$dom)) { $score -= 20; $reasons[] = '-disposable'; break; }
         }
 
         $score = max(0, min(100, $score));
-        // Decide status; avoid 'unknown' by using tie-breakers
         if ($score >= $thrGenuine) {
             $status = 'genuine';
         } elseif ($score <= $thrSpam) {
             $status = 'spam';
         } else {
-            // Tie-break: if hard negatives or multiple negatives hit, prefer spam
             if ($hardHit || $negHits >= 2) {
                 $status = 'spam';
             } else {
-                // else domain tokens and positive phrases push to genuine, otherwise spam
                 $tiePositive = false;
                 foreach (array_merge($phrases, $clientDomainTokens) as $p) {
                     if ($p && (str_contains($subject, $p) || str_contains($body, $p))) { $tiePositive = true; break; }

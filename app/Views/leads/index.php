@@ -38,20 +38,35 @@
 <?php if (!empty($clients)): ?>
 <div class="mb-2">
   <div class="btn-group btn-group-sm" role="group">
-    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="/leads?range=<?php echo urlencode($range); ?>">All Clients</a>
+    <?php
+      $clientBase = [ 'range'=>$range, 'q'=>$q ?? '', 'sort'=>$sort ];
+      if (!empty($status)) { $clientBase['status'] = $status; }
+    ?>
+    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo '/leads?' . http_build_query($clientBase); ?>">All Clients</a>
     <?php foreach ($clients as $c): ?>
-      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="/leads?range=<?php echo urlencode($range); ?>&client=<?php echo urlencode($c['shortcode']); ?>"><?php echo Helpers::e($c['shortcode']); ?></a>
+      <?php $cb = $clientBase; $cb['client'] = $c['shortcode']; ?>
+      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/leads?' . http_build_query($cb); ?>"><?php echo Helpers::e($c['shortcode']); ?></a>
     <?php endforeach; ?>
   </div>
 </div>
 <?php endif; ?>
 
+<?php
+  $rangeBase = [ 'q'=>$q ?? '', 'sort'=>$sort ];
+  if (!empty($activeClient)) { $rangeBase['client'] = $activeClient; }
+  if (!empty($status)) { $rangeBase['status'] = $status; }
+  $rangeLink = function(string $label, string $val) use ($rangeBase, $range) {
+    $qs = $rangeBase; $qs['range'] = $val;
+    $active = ($range === $val) ? ' active' : '';
+    return '<a class="btn btn-outline-secondary btn-sm' . $active . '" href="/leads?' . http_build_query($qs) . '">' . $label . '</a>';
+  };
+?>
 <div class="btn-group mb-3" role="group">
-  <a class="btn btn-outline-secondary btn-sm" href="/leads?range=last_week">Last week</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/leads?range=last_7">Last 7 days</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/leads?range=last_month">Last month</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/leads?range=last_30">Last 30 days</a>
-  <a class="btn btn-outline-secondary btn-sm" href="/leads?range=all">All time</a>
+  <?php echo $rangeLink('Last week','last_week'); ?>
+  <?php echo $rangeLink('Last 7 days','last_7'); ?>
+  <?php echo $rangeLink('Last month','last_month'); ?>
+  <?php echo $rangeLink('Last 30 days','last_30'); ?>
+  <?php echo $rangeLink('All time','all'); ?>
   </div>
 
 <div class="d-flex justify-content-between mb-2">

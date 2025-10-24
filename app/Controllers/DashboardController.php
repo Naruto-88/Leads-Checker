@@ -74,14 +74,26 @@ class DashboardController
         $all = !empty($_POST['all']);
         $cap = max($batch, (int)($_POST['cap'] ?? $batch));
         $processed = 0;
-        $fetchBatch = function(int $limit) use ($pdo, $user, $all) {
+        // For "all" mode, iterate deterministically without repeating the same top-N rows
+        $allLastId = 0;
+        $fetchBatch = function(int $limit) use ($pdo, $user, $all, &$allLastId) {
             if ($all) {
-                $stmt = $pdo->prepare('SELECT e.* FROM emails e WHERE e.user_id = ? ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+                // Walk forward by id to avoid re-reading the same set each loop
+                $stmt = $pdo->prepare('SELECT e.* FROM emails e WHERE e.user_id = :uid AND e.id > :lastId ORDER BY e.id ASC LIMIT :limit');
+                $stmt->bindValue(':uid', (int)$user['id'], \PDO::PARAM_INT);
+                $stmt->bindValue(':lastId', (int)$allLastId, \PDO::PARAM_INT);
+                $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
+                $stmt->execute();
+                $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+                if ($rows) { $allLastId = (int)end($rows)['id']; }
+                return $rows;
             } else {
-                $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = ? AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT ' . (int)$limit);
+                $stmt = $pdo->prepare('SELECT e.* FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id = :uid AND (l.id IS NULL OR l.status = "unknown") ORDER BY e.received_at DESC LIMIT :limit');
+                $stmt->bindValue(':uid', (int)$user['id'], \PDO::PARAM_INT);
+                $stmt->bindValue(':limit', (int)$limit, \PDO::PARAM_INT);
+                $stmt->execute();
+                return $stmt->fetchAll(\PDO::FETCH_ASSOC);
             }
-            $stmt->execute([$user['id']]);
-            return $stmt->fetchAll(\PDO::FETCH_ASSOC);
         };
         $emails = $fetchBatch($batch);
         $mode = $settings['filter_mode'] ?? 'algorithmic';
@@ -112,7 +124,11 @@ class DashboardController
             while ($processed < $cap) {
                 $next = $fetchBatch($batch);
                 if (!$next) break;
-                $processEmails($next);
+                // Respect cap even if the last batch would overflow
+                if ($processed + count($next) > $cap) {
+                    $next = array_slice($next, 0, max(0, $cap - $processed));
+                }
+                if ($next) { $processEmails($next); }
             }
         }
         $_SESSION['flash'] = 'Processed ' . $processed . ' emails.';
