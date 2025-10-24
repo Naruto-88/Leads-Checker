@@ -85,6 +85,9 @@ class DashboardController
         $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
         $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
         $processEmails = function(array $list) use (&$processed, $client, $user) {
+            if (!class_exists('App\\Services\\LeadScorer')) {
+                require_once BASE_PATH . '/app/Services/LeadScorer.php';
+            }
             foreach ($list as $em) {
                 if (empty($em['client_id'])) {
                     $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
@@ -150,6 +153,9 @@ class DashboardController
         while ($processed < $cap) {
             $emails = $fetchBatch($batch);
             if (!$emails) break;
+            if (!class_exists('App\\Services\\LeadScorer')) {
+                require_once BASE_PATH . '/app/Services/LeadScorer.php';
+            }
             foreach ($emails as $em) {
                 if (empty($em['client_id'])) {
                     $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
