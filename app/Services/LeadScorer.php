@@ -60,40 +60,40 @@ class LeadScorer
             // ignore and keep defaults
         }
 
-        // Positive signals
+        // Positive signals (including client domains) — we will prefer positives over generic negatives
         $phrases = array_unique(array_filter(array_merge([
             'quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation','demo','trial','meeting','schedule','availability'
         ], $userPos, $clientPos, $clientDomainTokens)));
+        $hasPositiveHit = false;
         foreach ($phrases as $p) {
-            if (str_contains($subject, $p) || str_contains($body, $p)) {
-                $score += 8; $reasons[] = "+phrase:$p"; break;
+            if ($p && (str_contains($subject, $p) || str_contains($body, $p))) {
+                $score += 8; $reasons[] = "+phrase:$p"; $hasPositiveHit = true; break;
             }
         }
         if (preg_match('/\b\+?\d[\d\s().-]{7,}\b/', $body)) { $score += 10; $reasons[] = '+phone'; }
         if (substr_count($body, '?') >= 1 && substr_count($body, '?') <= 5) { $score += 6; $reasons[] = '+question'; }
         if (preg_match('/^[A-Z][a-z]+\s[A-Z][a-z]+$/', $email['from_name'] ?? '')) { $score += 4; $reasons[] = '+human_name'; }
 
-        // Force spam on user/client negative keywords
+        // Priority handling: if a positive keyword (e.g., client domain) hits, do not force spam for generic negatives like 'http'/'https'
         $forcedSpam = false; $forcedReason = null;
-        foreach ($userNeg as $kw) {
-            $kw = trim((string)$kw); if ($kw==='') continue;
-            $pattern = '/\b' . preg_quote($kw, '/') . '\b/i';
-            if (preg_match($pattern, $subject) || preg_match($pattern, $body)) { $forcedSpam = true; $forcedReason = '-user_neg:' . $kw; break; }
-        }
-        if (!$forcedSpam) {
-            foreach ($clientNeg as $kw) {
+        $genericNegatives = ['http','https','www'];
+        $checkNegLists = function(array $list) use ($subject, $body, &$forcedSpam, &$forcedReason, $hasPositiveHit, $genericNegatives) {
+            foreach ($list as $kw) {
                 $kw = trim((string)$kw); if ($kw==='') continue;
                 $pattern = '/\b' . preg_quote($kw, '/') . '\b/i';
-                if (preg_match($pattern, $subject) || preg_match($pattern, $body)) { $forcedSpam = true; $forcedReason = '-client_neg:' . $kw; break; }
+                if (preg_match($pattern, $subject) || preg_match($pattern, $body)) {
+                    // If positive matched and negative is generic, do not force; let scoring decide later
+                    if ($hasPositiveHit && in_array(strtolower($kw), $genericNegatives, true)) {
+                        continue;
+                    }
+                    $forcedSpam = true; $forcedReason = (str_contains($pattern,'user')?'-user_neg:':'-neg:') . $kw; break;
+                }
             }
-        }
+        };
+        $checkNegLists($userNeg);
+        if (!$forcedSpam) { $checkNegLists($clientNeg); }
         if ($forcedSpam) {
-            return [
-                'score' => 0,
-                'reason' => $forcedReason,
-                'status' => 'spam',
-                'mode' => 'algorithmic',
-            ];
+            return [ 'score'=>0, 'reason'=>$forcedReason, 'status'=>'spam', 'mode'=>'algorithmic' ];
         }
 
         // Negative signals
@@ -130,13 +130,30 @@ class LeadScorer
             if (str_ends_with($from, '@'.$dom)) { $score -= 20; $reasons[] = '-disposable'; break; }
         }
 
+        // Detect external website mentions; if URLs point to domains other than the client, prefer 'unknown' for manual review
+        $externalUnknown = false;
+        if (!empty($clientDomainTokens)) {
+            if (preg_match_all('/https?:\/\/([a-z0-9.-]+)/i', $body, $mHosts)) {
+                $hosts = array_map(function($h){ $h = strtolower($h); return preg_replace('/^www\./','',$h); }, $mHosts[1] ?? []);
+                $external = 0; $clientish = 0;
+                foreach ($hosts as $h) {
+                    $hitClient = false;
+                    foreach ($clientDomainTokens as $tok) { if ($tok && str_contains($h, $tok)) { $hitClient = true; break; } }
+                    if ($hitClient) { $clientish++; } else { $external++; }
+                }
+                if ($external > 0 && $clientish === 0) { $externalUnknown = true; $reasons[] = 'external_url'; }
+            }
+        }
+
         $score = max(0, min(100, $score));
         if ($score >= $thrGenuine) {
             $status = 'genuine';
         } elseif ($score <= $thrSpam) {
             $status = 'spam';
         } else {
-            if ($hardHit || $negHits >= 2) {
+            if ($externalUnknown) {
+                $status = 'unknown';
+            } elseif ($hardHit || $negHits >= 2) {
                 $status = 'spam';
             } else {
                 $tiePositive = false;

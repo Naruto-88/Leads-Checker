@@ -12,7 +12,7 @@ class OpenAIClient
 
     public function classify(array $email): array
     {
-        $system = "You are a strict lead-qualification assistant for marketing websites. Classify emails as 'genuine', 'spam', or 'unknown'. Provide a score 0–100 and a concise explanation. First priority: if the subject or body is not in English, classify as 'spam' with reason 'non_english' and a low score. Only mark 'genuine' when it's clearly a real inquiry in English.";
+        $system = "You are a strict lead-qualification assistant for marketing websites. Classify emails as 'genuine', 'spam', or 'unknown'. Provide a score 0–100 and a concise explanation. Rules: (1) If the content is not English -> spam with reason 'non_english'. (2) Positive client indicators (their brand/website/keywords) take precedence over generic negatives like 'http'/'https'. (3) If the email contains URLs that point to websites other than the client's domain(s), prefer 'unknown' so a human can review. Be conservative: only mark 'genuine' when it is clearly a real inquiry in English.";
         $user = "From: {$email['from_email']}\nSubject: {$email['subject']}\nBody:\n" . substr(($email['body_plain'] ?? strip_tags($email['body_html'] ?? '')), 0, 2000);
 
         $payload = [
