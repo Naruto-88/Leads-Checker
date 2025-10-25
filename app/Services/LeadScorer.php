@@ -105,8 +105,11 @@ class LeadScorer
             'traffic','increase traffic','drive traffic','website traffic','targeted traffic','organic traffic',
             'guaranteed ranking','seo service','domain authority','da','pa','link building','guest post','backlinks'
         ];
+        $genericNegatives = ['http','https','www'];
         foreach ($negKeywords as $k) {
             if ($k === '') continue;
+            // If we already have a positive hit and this is a generic negative, ignore its penalty
+            if ($hasPositiveHit && in_array(strtolower($k), $genericNegatives, true)) { continue; }
             $pattern = '/\b' . preg_quote($k, '/') . '\b/i';
             if (preg_match($pattern, $subject) || preg_match($pattern, $body)) {
                 $negHits++; $score -= 15; $reasons[] = "-keyword:$k";
@@ -120,7 +123,7 @@ class LeadScorer
         }
         if (preg_match('/unsubscribe|opt\s?out/i', $body)) { $score -= 8; $reasons[] = '-unsubscribe'; }
         $links = preg_match_all('/https?:\/\//i', $body);
-        if ($links >= 3) { $score -= 10; $reasons[] = '-many_links'; }
+        if ($links >= 3) { if (!$hasPositiveHit) { $score -= 10; $reasons[] = '-many_links'; } }
         if (preg_match('/bit\.ly|t\.co|goo\.gl|ow\.ly|tinyurl\./i', $body)) { $score -= 10; $reasons[] = '-shortener'; }
         if (strlen(strip_tags($email['body_html'] ?? '')) < 0.3 * strlen($email['body_html'] ?? '')) { $score -= 6; $reasons[] = '-high_html_ratio'; }
         if (preg_match('/\b(noreply|no-reply)@/i', $from)) { $score -= 8; $reasons[] = '-noreply'; }
@@ -130,15 +133,26 @@ class LeadScorer
             if (str_ends_with($from, '@'.$dom)) { $score -= 20; $reasons[] = '-disposable'; break; }
         }
 
-        // Detect external website mentions; if URLs point to domains other than the client, prefer 'unknown' for manual review
+        // Build allowed host tokens from client domain and any domain-like positive keywords
+        $allowedHostTokens = $clientDomainTokens;
+        foreach (array_merge($userPos, $clientPos) as $kw) {
+            if (preg_match('/([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i', $kw, $m)) {
+                $h = strtolower($m[1]); $h = preg_replace('/^www\./','',$h);
+                $parts = preg_split('/[\.-]+/', $h);
+                foreach ($parts as $p) { if (strlen($p) >= 3) { $allowedHostTokens[] = $p; } }
+            }
+        }
+        $allowedHostTokens = array_values(array_unique(array_filter($allowedHostTokens)));
+
+        // Detect external website mentions; if URLs point to domains other than the allowed tokens, prefer 'unknown' for manual review
         $externalUnknown = false;
-        if (!empty($clientDomainTokens)) {
+        if (!empty($allowedHostTokens)) {
             if (preg_match_all('/https?:\/\/([a-z0-9.-]+)/i', $body, $mHosts)) {
                 $hosts = array_map(function($h){ $h = strtolower($h); return preg_replace('/^www\./','',$h); }, $mHosts[1] ?? []);
                 $external = 0; $clientish = 0;
                 foreach ($hosts as $h) {
                     $hitClient = false;
-                    foreach ($clientDomainTokens as $tok) { if ($tok && str_contains($h, $tok)) { $hitClient = true; break; } }
+                    foreach ($allowedHostTokens as $tok) { if ($tok && str_contains($h, $tok)) { $hitClient = true; break; } }
                     if ($hitClient) { $clientish++; } else { $external++; }
                 }
                 if ($external > 0 && $clientish === 0) { $externalUnknown = true; $reasons[] = 'external_url'; }
@@ -146,7 +160,10 @@ class LeadScorer
         }
 
         $score = max(0, min(100, $score));
-        if ($score >= $thrGenuine) {
+        // If a positive hit and not hard spam, never drop to spam solely due to generic link patterns
+        if ($hasPositiveHit && !$hardHit && $negHits <= 1 && !$externalUnknown) {
+            $status = ($score >= $thrGenuine ? 'genuine' : ($score <= $thrSpam ? 'unknown' : 'genuine'));
+        } elseif ($score >= $thrGenuine) {
             $status = 'genuine';
         } elseif ($score <= $thrSpam) {
             $status = 'spam';
