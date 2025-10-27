@@ -282,6 +282,8 @@ class DashboardController
             }
         }
         $_SESSION['flash'] = 'Processed ' . $processed . ' emails.';
+        // Mark leads as seen after processing to clear "New" badges on next load
+        $_SESSION['leads_seen_at'] = \App\Helpers::now();
         $return = trim($_POST['return'] ?? '');
         if ($return && str_starts_with($return, '/')) {
             Helpers::redirect($return);
@@ -355,6 +357,7 @@ class DashboardController
         @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>true,'remaining'=>$remaining]));
 
         $_SESSION['flash'] = 'Processed ' . $processed . ' emails in ' . $loops . ' pass(es). Remaining queue: ' . $remaining . '.';
+        $_SESSION['leads_seen_at'] = \App\Helpers::now();
         $return = trim($_POST['return'] ?? '');
         if ($return && str_starts_with($return, '/')) {
             Helpers::redirect($return);

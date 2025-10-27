@@ -65,8 +65,12 @@ class LeadScorer
             'quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation','demo','trial','meeting','schedule','availability'
         ], $userPos, $clientPos, $clientDomainTokens)));
         $hasPositiveHit = false;
+        $to = strtolower($email['to_email'] ?? '');
         foreach ($phrases as $p) {
-            if ($p && (str_contains($subject, $p) || str_contains($body, $p))) {
+            if (!$p) continue;
+            // Normalize basic URL-style positives by stripping scheme
+            $pp = preg_replace('/^https?:\/\//','', strtolower($p));
+            if (str_contains($subject, $pp) || str_contains($body, $pp) || ($to && str_contains($to, $pp)) || ($from && str_contains($from, $pp))) {
                 $score += 8; $reasons[] = "+phrase:$p"; $hasPositiveHit = true; break;
             }
         }
@@ -76,17 +80,18 @@ class LeadScorer
 
         // Priority handling: if a positive keyword (e.g., client domain) hits, do not force spam for generic negatives like 'http'/'https'
         $forcedSpam = false; $forcedReason = null;
-        $genericNegatives = ['http','https','www'];
+        $genericNegatives = ['http','https','http://','https://','www','www.'];
         $checkNegLists = function(array $list) use ($subject, $body, &$forcedSpam, &$forcedReason, $hasPositiveHit, $genericNegatives) {
             foreach ($list as $kw) {
                 $kw = trim((string)$kw); if ($kw==='') continue;
                 $pattern = '/\b' . preg_quote($kw, '/') . '\b/i';
                 if (preg_match($pattern, $subject) || preg_match($pattern, $body)) {
                     // If positive matched and negative is generic, do not force; let scoring decide later
-                    if ($hasPositiveHit && in_array(strtolower($kw), $genericNegatives, true)) {
+                    $kwNorm = strtolower($kw);
+                    if ($hasPositiveHit && (in_array($kwNorm, $genericNegatives, true) || in_array(preg_replace('/^https?:\/\//','http', $kwNorm), $genericNegatives, true))) {
                         continue;
                     }
-                    $forcedSpam = true; $forcedReason = (str_contains($pattern,'user')?'-user_neg:':'-neg:') . $kw; break;
+                    $forcedSpam = true; $forcedReason = '-neg:' . $kw; break;
                 }
             }
         };

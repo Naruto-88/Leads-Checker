@@ -3,7 +3,11 @@
   <tr data-status="<?php echo Helpers::e($l['status']); ?>">
     <td><input class="rowcb" type="checkbox" name="ids[]" value="<?php echo (int)$l['id']; ?>"></td>
     <td><?php echo Helpers::e($l['from_email']); ?></td>
-    <td><?php echo Helpers::e($l['subject']); ?></td>
+    <td><?php echo Helpers::e($l['subject']); ?>
+      <?php if (!empty($seenAtPrev) && !empty($l['created_at']) && $l['created_at'] > $seenAtPrev): ?>
+        <span class="badge bg-info text-dark ms-1" title="New since last visit">New</span>
+      <?php endif; ?>
+    </td>
     <td><?php echo Helpers::e(substr($l['body_plain'] ?? '', 0, 60)); ?></td>
     <td><?php echo Helpers::e($l['received_at']); ?></td>
     <td><?php echo (int)$l['score']; ?></td>

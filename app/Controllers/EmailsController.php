@@ -29,6 +29,8 @@ class EmailsController
         $emails = Email::listByUser($userId, $filters);
         $total = Email::countByUser($userId, $filters);
         $clients = \App\Models\Client::listByUser($userId);
+        $seenAtPrevEmails = $_SESSION['emails_seen_at'] ?? '1970-01-01 00:00:00';
+        $_SESSION['emails_seen_at'] = \App\Helpers::now();
         $data = [
             'emails' => $emails,
             'range' => $quick,
@@ -38,6 +40,7 @@ class EmailsController
             'total' => $total,
             'clients' => $clients,
             'activeClient' => $clientCode,
+            'seenAtPrevEmails' => $seenAtPrevEmails,
         ];
         $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
         if ($isPartial) {

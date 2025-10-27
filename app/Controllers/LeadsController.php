@@ -32,6 +32,8 @@ class LeadsController
         $leads = Lead::listByUser($user['id'], $filters);
         $total = Lead::countByUser($user['id'], $filters);
         $clients = \App\Models\Client::listByUser($user['id']);
+        $seenAtPrev = $_SESSION['leads_seen_at'] ?? '1970-01-01 00:00:00';
+        $_SESSION['leads_seen_at'] = \App\Helpers::now();
         $genuineCounts = \App\Models\Lead::genuineCountsByClient($user['id'], $start, $end);
         $genuineTotal = \App\Models\Lead::genuineTotal($user['id'], $start, $end);
         $data = [
@@ -47,6 +49,7 @@ class LeadsController
             'status' => $status,
             'genuineCounts' => $genuineCounts,
             'genuineTotal' => $genuineTotal,
+            'seenAtPrev' => $seenAtPrev,
         ];
         $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
         if ($isPartial) {
