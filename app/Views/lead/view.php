@@ -20,8 +20,16 @@
     <li class="nav-item" role="presentation"><button class="nav-link <?php echo $hasHtml ? 'active' : ''; ?>" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab">HTML</button></li>
   </ul>
   <div class="tab-content border p-3" id="myTabContent">
-    <div class="tab-pane fade <?php echo $hasHtml ? '' : 'show active'; ?>" id="plain" role="tabpanel"><pre class="mb-0" style="white-space: pre-wrap;">&lt;?php echo Helpers::e($lead['body_plain'] ?: strip_tags($lead['body_html'] ?? '')); ?&gt;</pre></div>
-    <div class="tab-pane fade <?php echo $hasHtml ? 'show active' : ''; ?>" id="html" role="tabpanel"><div class="bg-light p-2" style="max-height: 400px; overflow:auto;">&lt;?php echo strip_tags($lead['body_html'] ?? '', '&lt;p&gt;&lt;br&gt;&lt;b&gt;&lt;strong&gt;&lt;i&gt;&lt;em&gt;&lt;ul&gt;&lt;ol&gt;&lt;li&gt;&lt;a&gt;&lt;div&gt;&lt;span&gt;&lt;table&gt;&lt;thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;th&gt;&lt;td&gt;'); ?&gt;</div></div>
+    <div class="tab-pane fade <?php echo $hasHtml ? '' : 'show active'; ?>" id="plain" role="tabpanel">
+      <pre class="mb-0" style="white-space: pre-wrap;">
+<?php echo Helpers::e($lead['body_plain'] ?: strip_tags($lead['body_html'] ?? '')); ?>
+      </pre>
+    </div>
+    <div class="tab-pane fade <?php echo $hasHtml ? 'show active' : ''; ?>" id="html" role="tabpanel">
+      <div class="bg-light p-2" style="max-height: 400px; overflow:auto;">
+<?php echo strip_tags($lead['body_html'] ?? '', '<p><br><b><strong><i><em><ul><ol><li><a><div><span><table><thead><tbody><tr><th><td>'); ?>
+      </div>
+    </div>
   </div>
 </div>
 
