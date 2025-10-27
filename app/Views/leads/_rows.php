@@ -8,7 +8,11 @@
         <span class="badge bg-info text-dark ms-1" title="New since last visit">New</span>
       <?php endif; ?>
     </td>
-    <td><?php $snip = $l['body_plain'] ?? ''; if ($snip==='') { $snip = strip_tags($l['body_html'] ?? ''); } echo Helpers::e(substr($snip, 0, 60)); ?></td>
+    <td><?php
+      $snip = (string)($l['body_plain'] ?? '');
+      if ($snip === '' || preg_match('/<[^>]+>/', $snip)) { $snip = strip_tags((string)($l['body_html'] ?? $snip)); }
+      echo Helpers::e(substr($snip, 0, 60));
+    ?></td>
     <td><?php echo Helpers::e($l['received_at']); ?></td>
     <td><?php echo (int)$l['score']; ?></td>
     <td>

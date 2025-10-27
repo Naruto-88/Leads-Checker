@@ -1,4 +1,11 @@
-<?php use App\Helpers; use App\Security\Csrf; $hasHtml = !empty($lead['body_html']); ?>
+<?php
+use App\Helpers; use App\Security\Csrf;
+$plain = (string)($lead['body_plain'] ?? '');
+$bodyHtml = (string)($lead['body_html'] ?? '');
+$looksHtmlPlain = $plain !== '' && preg_match('/<[^>]+>/', $plain);
+$htmlContent = $bodyHtml !== '' ? $bodyHtml : ($looksHtmlPlain ? $plain : '');
+$hasHtml = $htmlContent !== '';
+?>
 <h1 class="h4 mb-3">Lead</h1>
 
 <div class="mb-3">
@@ -22,12 +29,15 @@
   <div class="tab-content border p-3" id="myTabContent">
     <div class="tab-pane fade <?php echo $hasHtml ? '' : 'show active'; ?>" id="plain" role="tabpanel">
       <pre class="mb-0" style="white-space: pre-wrap;">
-<?php echo Helpers::e($lead['body_plain'] ?: strip_tags($lead['body_html'] ?? '')); ?>
+<?php
+$plainOut = $plain !== '' ? ($looksHtmlPlain ? strip_tags($plain) : $plain) : strip_tags($htmlContent);
+echo Helpers::e($plainOut);
+?>
       </pre>
     </div>
     <div class="tab-pane fade <?php echo $hasHtml ? 'show active' : ''; ?>" id="html" role="tabpanel">
       <div class="bg-light p-2" style="max-height: 400px; overflow:auto;">
-<?php echo strip_tags($lead['body_html'] ?? '', '<p><br><b><strong><i><em><ul><ol><li><a><div><span><table><thead><tbody><tr><th><td>'); ?>
+<?php echo strip_tags($htmlContent, '<p><br><b><strong><i><em><ul><ol><li><a><div><span><table><thead><tbody><tr><th><td>'); ?>
       </div>
     </div>
   </div>
