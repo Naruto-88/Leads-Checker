@@ -149,7 +149,7 @@ class LeadScorer
         }
         $allowedHostTokens = array_values(array_unique(array_filter($allowedHostTokens)));
 
-        // Detect external website mentions; if URLs point to domains other than the allowed tokens, prefer 'unknown' for manual review
+        // Detect external website mentions; if ANY URL points to domains other than the allowed tokens, prefer 'unknown' for manual review
         $externalUnknown = false;
         if (!empty($allowedHostTokens)) {
             if (preg_match_all('/https?:\/\/([a-z0-9.-]+)/i', $body, $mHosts)) {
@@ -160,7 +160,8 @@ class LeadScorer
                     foreach ($allowedHostTokens as $tok) { if ($tok && str_contains($h, $tok)) { $hitClient = true; break; } }
                     if ($hitClient) { $clientish++; } else { $external++; }
                 }
-                if ($external > 0 && $clientish === 0) { $externalUnknown = true; $reasons[] = 'external_url'; }
+                // Previously we only flagged when clientish==0; now if any external links exist, we prefer UNKNOWN over GENUINE
+                if ($external > 0) { $externalUnknown = true; $reasons[] = 'external_url'; }
             }
         }
 
@@ -168,7 +169,7 @@ class LeadScorer
         // If a positive hit and not hard spam, never drop to spam solely due to generic link patterns
         if ($hasPositiveHit && !$hardHit && $negHits <= 1 && !$externalUnknown) {
             $status = ($score >= $thrGenuine ? 'genuine' : ($score <= $thrSpam ? 'unknown' : 'genuine'));
-        } elseif ($score >= $thrGenuine) {
+        } elseif ($score >= $thrGenuine && !$externalUnknown) {
             $status = 'genuine';
         } elseif ($score <= $thrSpam) {
             $status = 'spam';
