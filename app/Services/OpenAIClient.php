@@ -12,7 +12,45 @@ class OpenAIClient
 
     public function classify(array $email): array
     {
-        $system = "You are a strict lead-qualification assistant for marketing websites. Classify emails as 'genuine', 'spam', or 'unknown'. Provide a score 0–100 and a concise explanation. Rules: (1) If the content is not English -> spam with reason 'non_english'. (2) Positive client indicators (their brand/website/keywords) take precedence over generic negatives like 'http'/'https'. (3) If the email contains URLs that point to websites other than the client's domain(s), prefer 'unknown' so a human can review. Be conservative: only mark 'genuine' when it is clearly a real inquiry in English.";
+        // Build context: allowed client domains and positive keywords
+        $allowedDomains = [];
+        $posKeywords = [];
+        try {
+            $uid = (int)($email['user_id'] ?? 0);
+            if ($uid) {
+                $settings = \App\Models\Setting::getByUser($uid);
+                if (!empty($settings['filter_pos_keywords'])) {
+                    $posKeywords = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$settings['filter_pos_keywords']))));
+                }
+            }
+            if (!empty($email['client_id'])) {
+                $pdo = \App\Core\DB::pdo();
+                $stmt = $pdo->prepare('SELECT name, shortcode, website, filter_pos_keywords FROM clients WHERE id = ? LIMIT 1');
+                $stmt->execute([(int)$email['client_id']]);
+                if ($row = $stmt->fetch(\PDO::FETCH_ASSOC)) {
+                    $host = parse_url((string)$row['website'], PHP_URL_HOST) ?: (string)$row['website'];
+                    $host = strtolower($host);
+                    $host = preg_replace('/^www\./', '', $host);
+                    if ($host) { $allowedDomains[] = $host; }
+                    if (!empty($row['filter_pos_keywords'])) {
+                        $posKeywords = array_merge($posKeywords, array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$row['filter_pos_keywords'])))));
+                    }
+                }
+            }
+            foreach ($posKeywords as $kw) {
+                if (preg_match('/([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i', $kw, $m)) {
+                    $h = strtolower($m[1]); $h = preg_replace('/^www\./','',$h);
+                    $allowedDomains[] = $h;
+                }
+            }
+            $allowedDomains = array_values(array_unique(array_filter($allowedDomains)));
+        } catch (\Throwable $e) {}
+
+        $allowedStr = $allowedDomains ? ('Allowed client domains: ' . implode(', ', $allowedDomains) . '.') : '';
+        $posStr = $posKeywords ? (' Positive keywords: ' . implode(', ', array_slice($posKeywords, 0, 20)) . '.') : '';
+
+        $system = "You are a strict lead-qualification assistant for marketing websites. Return JSON with fields: status ∈ {genuine, spam, unknown}, score 0-100, reason.\nRules:\n1) If content is not English ⇒ spam (reason=non_english).\n2) Client positives (brand/website/keywords) take precedence over generic negatives like http/https/www.\n3) If URLs appear and any are NOT under the allowed client domains, prefer unknown only when there is no clear inquiry intent; do NOT mark unknown solely because links exist.\n4) Mark genuine only when there is clear inquiry intent (request/quote/booking/timeline/budget/phone/etc.).\n5) Obvious marketing/backlink/SEO offers are spam, not unknown.\n" . $allowedStr . $posStr;
+
         $user = "From: {$email['from_email']}\nSubject: {$email['subject']}\nBody:\n" . substr(($email['body_plain'] ?? strip_tags($email['body_html'] ?? '')), 0, 2000);
 
         $payload = [
