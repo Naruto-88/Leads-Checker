@@ -7,7 +7,7 @@
         <span class="badge bg-info text-dark ms-1" title="New since last visit">New</span>
       <?php endif; ?>
     </td>
-    <td><?php echo Helpers::e(substr($e['body_plain'] ?? '', 0, 60)); ?></td>
+    <td><?php $snip = $e['body_plain'] ?? ''; if ($snip==='') { $snip = strip_tags($e['body_html'] ?? ''); } echo Helpers::e(substr($snip, 0, 60)); ?></td>
     <td><?php echo Helpers::e($e['received_at']); ?></td>
   </tr>
 <?php endforeach; ?>

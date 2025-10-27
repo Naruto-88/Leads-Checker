@@ -1,4 +1,4 @@
-<?php use App\Helpers; use App\Security\Csrf; ?>
+<?php use App\Helpers; use App\Security\Csrf; $hasHtml = !empty($lead['body_html']); ?>
 <h1 class="h4 mb-3">Lead</h1>
 
 <div class="mb-3">
@@ -16,12 +16,12 @@
 
 <div class="mb-3">
   <ul class="nav nav-tabs" id="myTab" role="tablist">
-    <li class="nav-item" role="presentation"><button class="nav-link active" id="plain-tab" data-bs-toggle="tab" data-bs-target="#plain" type="button" role="tab">Plain</button></li>
-    <li class="nav-item" role="presentation"><button class="nav-link" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab">HTML</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link <?php echo $hasHtml ? '' : 'active'; ?>" id="plain-tab" data-bs-toggle="tab" data-bs-target="#plain" type="button" role="tab">Plain</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link <?php echo $hasHtml ? 'active' : ''; ?>" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab">HTML</button></li>
   </ul>
   <div class="tab-content border p-3" id="myTabContent">
-    <div class="tab-pane fade show active" id="plain" role="tabpanel"><pre class="mb-0" style="white-space: pre-wrap;"><?php echo Helpers::e($lead['body_plain']); ?></pre></div>
-    <div class="tab-pane fade" id="html" role="tabpanel"><div class="bg-light p-2" style="max-height: 400px; overflow:auto;"><?php echo strip_tags($lead['body_html'] ?? '', '<p><br><b><strong><i><em><ul><ol><li><a>'); ?></div></div>
+    <div class="tab-pane fade <?php echo $hasHtml ? '' : 'show active'; ?>" id="plain" role="tabpanel"><pre class="mb-0" style="white-space: pre-wrap;">&lt;?php echo Helpers::e($lead['body_plain'] ?: strip_tags($lead['body_html'] ?? '')); ?&gt;</pre></div>
+    <div class="tab-pane fade <?php echo $hasHtml ? 'show active' : ''; ?>" id="html" role="tabpanel"><div class="bg-light p-2" style="max-height: 400px; overflow:auto;">&lt;?php echo strip_tags($lead['body_html'] ?? '', '&lt;p&gt;&lt;br&gt;&lt;b&gt;&lt;strong&gt;&lt;i&gt;&lt;em&gt;&lt;ul&gt;&lt;ol&gt;&lt;li&gt;&lt;a&gt;&lt;div&gt;&lt;span&gt;&lt;table&gt;&lt;thead&gt;&lt;tbody&gt;&lt;tr&gt;&lt;th&gt;&lt;td&gt;'); ?&gt;</div></div>
   </div>
 </div>
 

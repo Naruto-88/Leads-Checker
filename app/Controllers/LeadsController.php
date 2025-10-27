@@ -127,10 +127,12 @@ class LeadsController
         $out = fopen('php://output', 'w');
         fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
         foreach ($rows as $r) {
+            $snip = $r['body_plain'] ?? '';
+            if ($snip==='') { $snip = strip_tags($r['body_html'] ?? ''); }
             fputcsv($out, [
                 $r['from_email'],
                 $r['subject'],
-                mb_substr($r['body_plain'] ?? '', 0, 160),
+                mb_substr($snip, 0, 160),
                 $r['received_at'],
                 $r['status'],
                 $r['score'],
