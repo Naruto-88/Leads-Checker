@@ -36,7 +36,7 @@ class Email
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q)';
+            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q OR body_html LIKE :q)';
             $params['q'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
@@ -67,7 +67,7 @@ class Email
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q)';
+            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q OR body_html LIKE :q)';
             $params['q'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
@@ -97,3 +97,4 @@ class Email
         $stmt->execute([$clientId, $emailId]);
     }
 }
+

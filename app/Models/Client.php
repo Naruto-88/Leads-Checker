@@ -6,8 +6,17 @@ use PDO;
 
 class Client
 {
+    private static function ensureContactEmails(): void
+    {
+        try {
+            DB::pdo()->exec("ALTER TABLE clients ADD COLUMN contact_emails TEXT NULL AFTER website");
+        } catch (\Throwable $e) {
+            // ignore if exists or no permission
+        }
+    }
     public static function listByUser(int $userId): array
     {
+        self::ensureContactEmails();
         $stmt = DB::pdo()->prepare('SELECT * FROM clients WHERE user_id = ? ORDER BY name ASC');
         $stmt->execute([$userId]);
         return $stmt->fetchAll(PDO::FETCH_ASSOC);
@@ -15,6 +24,7 @@ class Client
 
     public static function create(int $userId, string $name, ?string $website, string $shortcode): int
     {
+        self::ensureContactEmails();
         $stmt = DB::pdo()->prepare('INSERT INTO clients (user_id, name, website, shortcode, created_at) VALUES (?,?,?,?,NOW())');
         $stmt->execute([$userId, $name, $website, $shortcode]);
         return (int)DB::pdo()->lastInsertId();
@@ -28,8 +38,16 @@ class Client
 
     public static function update(int $userId, int $id, string $name, ?string $website, string $shortcode): void
     {
+        self::ensureContactEmails();
         $stmt = DB::pdo()->prepare('UPDATE clients SET name = ?, website = ?, shortcode = ? WHERE id = ? AND user_id = ?');
         $stmt->execute([$name, $website, $shortcode, $id, $userId]);
+    }
+
+    public static function updateContactEmails(int $userId, int $id, ?string $emails): void
+    {
+        self::ensureContactEmails();
+        $stmt = DB::pdo()->prepare('UPDATE clients SET contact_emails = ? WHERE id = ? AND user_id = ?');
+        $stmt->execute([$emails, $id, $userId]);
     }
 
     public static function findByShortcode(int $userId, string $code): ?array

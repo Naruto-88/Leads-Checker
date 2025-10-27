@@ -120,8 +120,15 @@ class SettingsController
         $name = trim($_POST['name'] ?? '');
         $website = trim($_POST['website'] ?? '');
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
+        $emails = trim((string)($_POST['contact_emails'] ?? ''));
         if (!$name || !$short) { $_SESSION['flash'] = 'Client name and shortcode required.'; Helpers::redirect('/settings'); }
         \App\Models\Client::create(Auth::user()['id'], $name, $website ?: null, $short);
+        // Update contact emails if provided
+        try {
+            $pdo = \App\Core\DB::pdo();
+            $id = (int)$pdo->lastInsertId();
+            if ($id && $emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
+        } catch (\Throwable $e) {}
         // Stay on Clients tab after adding
         Helpers::redirect('/settings?tab=clients');
     }
@@ -143,11 +150,13 @@ class SettingsController
         $name = trim($_POST['name'] ?? '');
         $website = trim($_POST['website'] ?? '');
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
+        $emails = trim((string)($_POST['contact_emails'] ?? ''));
         if (!$id || !$name || !$short) {
             $_SESSION['flash'] = 'Client id, name and shortcode are required.';
             Helpers::redirect('/settings?tab=clients');
         }
         \App\Models\Client::update(Auth::user()['id'], $id, $name, $website ?: null, $short);
+        if ($emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
         Helpers::redirect('/settings?tab=clients');
     }
 

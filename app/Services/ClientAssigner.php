@@ -8,7 +8,7 @@ class ClientAssigner
     public static function assign(int $userId, array $email): array
     {
         $pdo = DB::pdo();
-        $clients = $pdo->prepare('SELECT id, name, website, shortcode FROM clients WHERE user_id = ?');
+        $clients = $pdo->prepare('SELECT id, name, website, shortcode, contact_emails FROM clients WHERE user_id = ?');
         $clients->execute([$userId]);
         $rows = $clients->fetchAll(\PDO::FETCH_ASSOC);
         if (!$rows) return ['client_id'=>null,'score'=>0,'reason'=>'no_clients'];
@@ -61,3 +61,18 @@ class ClientAssigner
     }
 }
 
+            // Contact emails matching (exact from match or domain match)
+            $emailsList = [];
+            if (!empty($c['contact_emails'])) {
+                $emailsList = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$c['contact_emails']))));
+            }
+            if ($from && $emailsList) {
+                foreach ($emailsList as $eml) {
+                    $eml = strtolower($eml);
+                    if ($eml === '') continue;
+                    if ($from === $eml) { $score += 20; $reasons[] = 'from:eq_contact'; break; }
+                    // domain match
+                    $dom = substr(strrchr($eml, '@') ?: '', 1);
+                    if ($dom && str_contains($from, '@'.$dom)) { $score += 12; $reasons[] = 'from:dom_contact'; break; }
+                }
+            }
