@@ -101,6 +101,8 @@ $router->get('/cron/process', [App\Controllers\CronController::class, 'process']
 
 // Actions on dashboard
 $router->post('/action/fetch-now', [App\Controllers\DashboardController::class, 'fetchNow']);
+$router->post('/action/fetch-now-async', [App\Controllers\DashboardController::class, 'fetchNowAsync']);
+$router->get('/action/fetch-progress-now', [App\Controllers\DashboardController::class, 'fetchProgressNow']);
 $router->post('/action/run-filter', [App\Controllers\DashboardController::class, 'runFilter']);
 $router->post('/action/backfill-assign', [App\Controllers\DashboardController::class, 'backfillAssign']);
 

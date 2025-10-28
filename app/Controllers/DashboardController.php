@@ -371,6 +371,36 @@ class DashboardController
         Helpers::redirect('/');
     }
 
+    public function fetchNowAsync(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'Bad CSRF']); return; }
+        header('Content-Type: application/json');
+        $user = Auth::user();
+        $progressFile = BASE_PATH . '/storage/logs/fetch_progress_user_' . (int)$user['id'] . '.json';
+        @file_put_contents($progressFile, json_encode(['started'=>date('c'),'done'=>false,'accounts_total'=>0,'accounts_done'=>0,'fetched_total'=>0]));
+        $cmd = 'php ' . escapeshellarg(BASE_PATH . '/tools/fetch_now.php') . ' ' . (int)$user['id'] . ' > /dev/null 2>&1 &';
+        @chdir(BASE_PATH);
+        // best-effort spawn
+        if (stripos(PHP_OS, 'WIN') === 0) {
+            pclose(popen('start /B ' . $cmd, 'r'));
+        } else {
+            @exec($cmd);
+        }
+        echo json_encode(['ok'=>true]);
+    }
+
+    public function fetchProgressNow(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json');
+        $user = Auth::user();
+        $file = BASE_PATH . '/storage/logs/fetch_progress_user_' . (int)$user['id'] . '.json';
+        if (!file_exists($file)) { echo json_encode(['done'=>true,'accounts_total'=>0,'accounts_done'=>0,'fetched_total'=>0]); return; }
+        $json = @file_get_contents($file);
+        echo $json !== false ? $json : json_encode(['done'=>false]);
+    }
+
     public function backfillAssign(): void
     {
         Auth::requireLogin();

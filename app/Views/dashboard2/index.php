@@ -2,7 +2,7 @@
 <div class="d-flex justify-content-between align-items-center mb-3">
   <h1 class="h4">Dashboard</h1>
   <div>
-    <form method="post" action="/action/fetch-now" class="d-inline js-loading-form"><!-- Fetch Now -->
+    <form id="fetchNowFormD2" method="post" action="/action/fetch-now-async" class="d-inline js-loading-form"><!-- Fetch Now (Async) -->
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="return" value="/dashboard2">
       <button class="btn btn-sm btn-outline-primary js-loading-btn" data-loading-text="Fetching..." data-bs-toggle="tooltip" title="Fetch new emails from connected inboxes">Fetch Now</button>
@@ -214,6 +214,35 @@ document.addEventListener('DOMContentLoaded', function(){
         } catch (e) {}
       };
       setTimeout(tick, 800);
+    });
+  }
+
+  // Async Fetch Now with progress polling
+  const fetchForm = document.getElementById('fetchNowFormD2');
+  if (fetchForm) {
+    fetchForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const btn = fetchForm.querySelector('.js-loading-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Starting...'; }
+      const fd = new FormData(fetchForm);
+      fetch(fetchForm.getAttribute('action') || '/action/fetch-now-async', { method: 'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' }})
+        .then(r=>r.json()).then(j=>{
+          let info = document.getElementById('progressInfoFetch');
+          if (!info) { info = document.createElement('div'); info.id='progressInfoFetch'; info.className='small text-muted ms-2 d-inline-block'; fetchForm.parentElement.appendChild(info); }
+          const tick = async () => {
+            try {
+              const res = await fetch('/action/fetch-progress-now', { headers: { 'Accept':'application/json' } });
+              if (!res.ok) return;
+              const p = await res.json();
+              if (p && typeof p.accounts_done !== 'undefined') {
+                const total = p.accounts_total || 0; const done = p.accounts_done || 0; const ft = p.fetched_total || 0;
+                info.textContent = p.done ? `Done. Fetched ${ft} across ${done}/${total} accounts.` : `Fetching ${done}/${total} accounts... Total new ${ft}`;
+                if (!p.done) { setTimeout(tick, 1000); } else if (btn) { btn.disabled=false; btn.textContent='Fetch Now'; }
+              }
+            } catch (e) { /* ignore */ }
+          };
+          setTimeout(tick, 800);
+        }).catch(()=>{ if (btn) { btn.disabled=false; btn.textContent='Fetch Now'; } });
     });
   }
 
