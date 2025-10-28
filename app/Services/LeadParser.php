@@ -30,6 +30,9 @@ class LeadParser
         if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
             return ['Name','Email','Phone Number','Message'];
         }
+        if ($code === 'DB' || stripos($clientName, 'Dream Boat') !== false) {
+            return ['First Name','Email','Mobile','Guests','Preferred Date','Message'];
+        }
         // Default/generic
         return ['From','Subject','Snippet','Received','Status','Score','Mode'];
     }
@@ -74,6 +77,27 @@ class LeadParser
                 'Message' => $msg,
             ];
             return $out;
+        }
+        if ($code === 'DB' || stripos($clientName, 'Dream Boat') !== false) {
+            // Dream Boats contact form
+            $first = self::matchFirst($text, '/^\s*(First\s*Name|Name)\s*:\s*(.+)$/im', 2);
+            $email = self::matchFirst($text, '/^\s*Email\s*:\s*([^\s]+)\s*$/im');
+            if ($email === '' && preg_match('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $text, $mE)) { $email = $mE[0]; }
+            if ($email === '' && !empty($row['from_email'])) { $email = (string)$row['from_email']; }
+            $mobile = self::matchFirst($text, '/^\s*(Mobile|Phone|Phone\s*Number|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2);
+            $guests = self::matchFirst($text, '/^\s*(How\s*many\s*guests|Guests)\s*:\s*(.+)$/im', 2);
+            $date = self::matchFirst($text, '/^\s*(Preferred\s*Date|Date)\s*:\s*(.+)$/im', 2);
+            $message = self::extractMessageAfterLabel($text, 'Enquiry and questions');
+            if ($message === '') { $message = self::extractMessageAfterLabel($text, 'Message'); }
+            if ($message === '') { $message = self::extractTailAfterKnownLabels($text); }
+            return [
+                'First Name' => $first,
+                'Email' => $email,
+                'Mobile' => $mobile,
+                'Guests' => $guests,
+                'Preferred Date' => $date,
+                'Message' => $message,
+            ];
         }
         return null; // unknown client -> use generic export
     }
