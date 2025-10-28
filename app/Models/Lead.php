@@ -143,7 +143,7 @@ class Lead
 
     public static function listByUserForExport(int $userId, array $opts = []): array
     {
-        $sql = 'SELECT l.*, e.from_email, e.subject, e.body_plain, e.received_at FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.user_id = :uid AND l.deleted_at IS NULL';
+        $sql = 'SELECT l.*, e.from_email, e.subject, e.body_plain, e.body_html, e.received_at FROM leads l JOIN emails e ON e.id = l.email_id WHERE l.user_id = :uid AND l.deleted_at IS NULL';
         $params = ['uid'=>$userId];
         if (!empty($opts['status'])) {
             $sql .= ' AND l.status = :status';
