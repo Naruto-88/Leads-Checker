@@ -30,7 +30,7 @@ class LeadParser
         if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
             return ['Name','Email','Phone Number','Message'];
         }
-        if ($code === 'DB' || stripos($clientName, 'Dream Boat') !== false) {
+        if ($code === 'DB' || stripos($clientName, 'dream boat') !== false || stripos($clientName, 'dream boats') !== false) {
             return ['First Name','Email','Mobile','Guests','Preferred Date','Message'];
         }
         // Default/generic
@@ -78,7 +78,7 @@ class LeadParser
             ];
             return $out;
         }
-        if ($code === 'DB' || stripos($clientName, 'Dream Boat') !== false) {
+        if ($code === 'DB' || stripos($clientName, 'dream boat') !== false || stripos($clientName, 'dream boats') !== false) {
             // Dream Boats contact form
             $first = self::matchFirst($text, '/^\s*(First\s*Name|Name)\s*:\s*(.+)$/im', 2);
             $email = self::matchFirst($text, '/^\s*Email\s*:\s*([^\s]+)\s*$/im');
@@ -87,9 +87,8 @@ class LeadParser
             $mobile = self::matchFirst($text, '/^\s*(Mobile|Phone|Phone\s*Number|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2);
             $guests = self::matchFirst($text, '/^\s*(How\s*many\s*guests|Guests)\s*:\s*(.+)$/im', 2);
             $date = self::matchFirst($text, '/^\s*(Preferred\s*Date|Date)\s*:\s*(.+)$/im', 2);
-            // For Message, only include the "Enquiry and questions" section (no full email fallback)
-            $message = self::extractMessageAfterLabel($text, 'Enquiry and questions');
-            if ($message === '') { $message = self::extractMessageAfterLabel($text, 'Enquiry & questions'); }
+            // For Message, only include the "Enquiry and questions" block (forms often use header lines without colons)
+            $message = self::extractHeaderBlock($text, ['Enquiry and questions','Enquiry & questions']);
             return [
                 'First Name' => $first,
                 'Email' => $email,
@@ -209,6 +208,44 @@ class LeadParser
             if ($s === '') continue;
             if (preg_match('/^\s*[A-Za-z][A-Za-z \t]+:\s+.+$/', $s)) continue;
             if (stripos($s, 'This email was sent from a contact form') !== false) break;
+            $out[] = $s;
+        }
+        $msg = trim(implode(" \n", $out));
+        if (mb_strlen($msg) > 5000) { $msg = mb_substr($msg, 0, 5000); }
+        return $msg;
+    }
+
+    private static function extractHeaderBlock(string $text, array $headers): string
+    {
+        // Matches a header as a standalone line (no colon), then captures subsequent lines until another known header is found
+        $pos = -1; $matchLen = 0;
+        foreach ($headers as $h) {
+            $rx = '/^\s*' . preg_quote($h, '/') . '\s*:?\s*$/im';
+            if (preg_match($rx, $text, $m, PREG_OFFSET_CAPTURE)) {
+                $pos = $m[0][1]; $matchLen = strlen($m[0][0]);
+                break;
+            }
+        }
+        if ($pos < 0) { return ''; }
+        $tail = substr($text, $pos + $matchLen);
+        // Stop when hitting the next header/label line
+        $stopHeaders = [
+            'First Name','Name','Email','Mobile','Phone','Phone Number','Contact','How many guests','Guests','Preferred Date','Date','Subject'
+        ];
+        $lines = preg_split('/\r?\n/', (string)$tail);
+        $out = [];
+        foreach ($lines as $ln) {
+            $s = trim($ln);
+            if ($s === '') continue;
+            foreach ($stopHeaders as $sh) {
+                if (preg_match('/^\s*' . preg_quote($sh, '/') . '\s*:?\s*$/i', $s)) {
+                    $s = '';
+                }
+            }
+            if ($s === '') break;
+            if (stripos($s, 'This email was sent from a contact form') !== false) break;
+            // Skip lines that are pure labels
+            if (preg_match('/^\s*[A-Za-z][A-Za-z \t]+:\s*.*$/', $s)) continue;
             $out[] = $s;
         }
         $msg = trim(implode(" \n", $out));
