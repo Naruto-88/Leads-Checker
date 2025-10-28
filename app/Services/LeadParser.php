@@ -57,12 +57,20 @@ class LeadParser
             return $out;
         }
         if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
-            // Typical AA contact form fields: Name, Email, Phone Number, Message
+            // Typical AA contact form fields can appear as: Name/From, Email, Phone or Phone Number, Message or Message Body
+            $name = self::matchFirst($text, '/^\s*(Name|From)\s*:\s*(.+)$/im', 2);
+            // Prefer explicit Email:, else first email in the text, else fallback to envelope from_email
+            $email = self::matchFirst($text, '/^\s*Email\s*:\s*([^\s]+)\s*$/im');
+            if ($email === '' && preg_match('/[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}/', $text, $mE)) { $email = $mE[0]; }
+            if ($email === '' && !empty($row['from_email'])) { $email = (string)$row['from_email']; }
+            $phone = self::matchFirst($text, '/^\s*(Phone\s*Number|Phone|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2);
+            $msg = self::extractMessageAfterLabel($text, 'Message');
+            if ($msg === '') { $msg = self::extractMessageAfterLabel($text, 'Message Body'); }
             $out = [
-                'Name' => self::matchFirst($text, '/^\s*Name\s*:\s*(.+)$/im'),
-                'Email' => self::matchFirst($text, '/^\s*Email\s*:\s*([^\s]+)\s*$/im'),
-                'Phone Number' => self::matchFirst($text, '/^\s*(Phone\s*Number|Phone|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2),
-                'Message' => self::extractMessageAfterLabel($text, 'Message'),
+                'Name' => $name,
+                'Email' => $email,
+                'Phone Number' => $phone,
+                'Message' => $msg,
             ];
             return $out;
         }
