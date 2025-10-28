@@ -246,6 +246,34 @@ document.addEventListener('DOMContentLoaded', function(){
     });
   }
 
+  // Handle mark/reprocess inside the Lead modal via AJAX and close with a quick fade
+  document.addEventListener('submit', async function (e) {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const action = form.getAttribute('action') || '';
+    if (!/\/lead\/(mark|reprocess)$/.test(action)) return;
+    e.preventDefault();
+    try {
+      const fd = new FormData(form);
+      const res = await fetch(action, {
+        method: 'POST',
+        body: fd,
+        headers: { 'X-Requested-With': 'XMLHttpRequest', 'Accept': 'application/json' }
+      });
+      const json = await res.json();
+      // Close modal with subtle animation if present
+      const modalEl = document.getElementById('leadModal');
+      if (modalEl) {
+        const content = modalEl.querySelector('.modal-content');
+        if (content) { content.style.transition = 'opacity .15s ease, transform .15s ease'; content.style.opacity = '0'; content.style.transform = 'scale(0.98)'; }
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        setTimeout(() => { modal.hide(); if (content) { content.style.opacity=''; content.style.transform=''; } }, 150);
+      }
+    } catch (err) {
+      // fallback: ignore
+    }
+  }, true);
+
   if (window.Chart && chartData && chartData.labels) {
     // Avoid multiple initializations if this script runs more than once
     window._dash2Charts = window._dash2Charts || {};
