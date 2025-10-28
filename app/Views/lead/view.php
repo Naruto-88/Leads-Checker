@@ -23,19 +23,35 @@ $hasHtml = $htmlContent !== '';
 
 <div class="mb-3">
   <ul class="nav nav-tabs" id="myTab" role="tablist">
-    <li class="nav-item" role="presentation"><button class="nav-link <?php echo $hasHtml ? '' : 'active'; ?>" id="plain-tab" data-bs-toggle="tab" data-bs-target="#plain" type="button" role="tab">Plain</button></li>
-    <li class="nav-item" role="presentation"><button class="nav-link <?php echo $hasHtml ? 'active' : ''; ?>" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab">HTML</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link active" id="plain-tab" data-bs-toggle="tab" data-bs-target="#plain" type="button" role="tab">Plain</button></li>
+    <li class="nav-item" role="presentation"><button class="nav-link" id="html-tab" data-bs-toggle="tab" data-bs-target="#html" type="button" role="tab">HTML</button></li>
   </ul>
   <div class="tab-content border p-3" id="myTabContent">
-    <div class="tab-pane fade <?php echo $hasHtml ? '' : 'show active'; ?>" id="plain" role="tabpanel">
+    <div class="tab-pane fade show active" id="plain" role="tabpanel">
       <pre class="mb-0" style="white-space: pre-wrap;">
 <?php
-$plainOut = $plain !== '' ? ($looksHtmlPlain ? strip_tags($plain) : $plain) : strip_tags($htmlContent);
+// Render a readable plain text with preserved line breaks from HTML sources
+$src = $plain !== '' ? $plain : $htmlContent;
+if ($looksHtmlPlain || ($plain === '' && $htmlContent !== '')) {
+    $t = $src;
+    // Normalize common HTML breaks to newlines before stripping tags
+    $t = preg_replace('/<\s*br\s*\/?\s*>/i', "\n", $t);
+    $t = preg_replace('/<\/(p|div|li|tr|h[1-6])\s*>/i', "\n", $t);
+    $t = preg_replace('/<\/(ul|ol|table|thead|tbody|tfoot)\s*>/i', "\n\n", $t);
+    $t = strip_tags($t);
+    $t = html_entity_decode($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    // Collapse excessive blank lines while keeping paragraphs
+    $t = preg_replace("/\n{3,}/", "\n\n", $t);
+    $t = preg_replace('/[\t\x{00A0}]+/u', ' ', $t); // replace tabs and &nbsp;
+    $plainOut = trim($t);
+} else {
+    $plainOut = (string)$src;
+}
 echo Helpers::e($plainOut);
 ?>
       </pre>
     </div>
-    <div class="tab-pane fade <?php echo $hasHtml ? 'show active' : ''; ?>" id="html" role="tabpanel">
+    <div class="tab-pane fade" id="html" role="tabpanel">
       <div class="bg-light p-2" style="max-height: 400px; overflow:auto;">
 <?php echo strip_tags($htmlContent, '<p><br><b><strong><i><em><ul><ol><li><a><div><span><table><thead><tbody><tr><th><td>'); ?>
       </div>

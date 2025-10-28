@@ -20,9 +20,15 @@
       <input type="hidden" name="cap" value="5000">
       <button class="btn btn-sm btn-warning js-loading-btn" data-loading-text="Processing..." data-bs-toggle="tooltip" title="Process the entire queue of unprocessed emails">Process All</button>
     </form>
+    <form method="post" action="/action/backfill-assign" class="d-inline ms-2 js-loading-form"><!-- Backfill & Assign -->
+      <?php echo Csrf::input(); ?>
+      <input type="hidden" name="return" value="/dashboard2">
+      <button class="btn btn-sm btn-outline-secondary js-loading-btn" data-loading-text="Backfilling..." data-bs-toggle="tooltip" title="Recompute client assignment (strong rules), clear weak matches, and sync leads">Backfill &amp; Assign</button>
+    </form>
     <?php
       $exportQs = ['status'=>'genuine','range'=>$range];
       if ($range==='custom') { $exportQs['start']=$start; $exportQs['end']=$end; }
+      if (!empty($activeClient)) { $exportQs['client'] = $activeClient; }
     ?>
     <a class="btn btn-sm btn-success ms-2" href="<?php echo '/leads/export?' . http_build_query($exportQs); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for the selected range">Export CSV</a>
   </div>
@@ -54,10 +60,29 @@
         <span class="input-group-text">End</span>
         <input class="form-control" type="date" name="end" value="<?php echo Helpers::e(substr($end,0,10)); ?>">
       </div>
+      <?php if (!empty($activeClient)): ?>
+        <input type="hidden" name="client" value="<?php echo Helpers::e($activeClient); ?>">
+      <?php endif; ?>
       <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply the custom date range">Apply</button>
     </form>
   </div>
 </div>
+
+<?php if (!empty($clients)): ?>
+<div class="mb-2">
+  <div class="btn-group btn-group-sm" role="group">
+    <?php
+      $base = ['range'=>$range];
+      if ($range==='custom') { $base['start']=substr($start,0,10); $base['end']=substr($end,0,10); }
+      $hrefAll = '/dashboard2?' . http_build_query($base);
+    ?>
+    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo $hrefAll; ?>">All Clients</a>
+    <?php foreach (($clients ?? []) as $c): $qs = $base; $qs['client'] = $c['shortcode']; ?>
+      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/dashboard2?' . http_build_query($qs); ?>"><?php echo Helpers::e($c['shortcode']); ?></a>
+    <?php endforeach; ?>
+  </div>
+</div>
+<?php endif; ?>
 
 <div class="row g-3 mb-3">
   <div class="col-md-3"><div class="card shadow-sm stat-card stat-blue"><div class="card-body"><div class="small text-muted">New Emails</div><div class="display-6 fw-semibold"><?php echo (int)$newEmails; ?></div></div></div></div>

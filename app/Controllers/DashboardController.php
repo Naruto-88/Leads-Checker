@@ -46,6 +46,10 @@ class DashboardController
         Auth::requireLogin();
         $user = Auth::user();
         $quick = $_GET['range'] ?? 'last_7';
+        // Client filter (by shortcode like Leads page)
+        $clientCode = trim($_GET['client'] ?? '');
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+        $clientId = $client['id'] ?? null;
         // Normalize and validate range/start/end
         $allowed = ['last_week','last_7','last_month','last_30','all','custom'];
         if (!in_array($quick, $allowed, true)) { $quick = 'last_7'; }
@@ -69,28 +73,53 @@ class DashboardController
 
         // If All Time selected, derive actual bounds from user's data to avoid huge ranges
         if ($quick === 'all') {
-            $mm = $pdo->prepare('SELECT MIN(received_at) AS mn, MAX(received_at) AS mx FROM emails WHERE user_id = ?');
-            $mm->execute([$user['id']]);
+            if ($clientId) {
+                $mm = $pdo->prepare('SELECT MIN(received_at) AS mn, MAX(received_at) AS mx FROM emails WHERE user_id = ? AND client_id = ?');
+                $mm->execute([$user['id'], $clientId]);
+            } else {
+                $mm = $pdo->prepare('SELECT MIN(received_at) AS mn, MAX(received_at) AS mx FROM emails WHERE user_id = ?');
+                $mm->execute([$user['id']]);
+            }
             $row = $mm->fetch(\PDO::FETCH_ASSOC) ?: [];
             if (!empty($row['mn'])) { $start = (new \DateTime($row['mn']))->format('Y-m-d 00:00:00'); }
             if (!empty($row['mx'])) { $end = (new \DateTime($row['mx']))->format('Y-m-d 23:59:59'); }
         }
 
         // Header KPIs
-        $qNew = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ?');
-        $qNew->execute([$user['id'], $start, $end]);
+        if ($clientId) {
+            $qNew = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id=? AND client_id=? AND received_at BETWEEN ? AND ?');
+            $qNew->execute([$user['id'], $clientId, $start, $end]);
+        } else {
+            $qNew = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ?');
+            $qNew->execute([$user['id'], $start, $end]);
+        }
         $newEmails = (int)$qNew->fetchColumn();
 
-        $qProcessed = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status <> 'unknown' AND e.received_at BETWEEN ? AND ?");
-        $qProcessed->execute([$user['id'], $start, $end]);
+        if ($clientId) {
+            $qProcessed = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.client_id=? AND l.deleted_at IS NULL AND l.status <> 'unknown' AND e.received_at BETWEEN ? AND ?");
+            $qProcessed->execute([$user['id'], $clientId, $start, $end]);
+        } else {
+            $qProcessed = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status <> 'unknown' AND e.received_at BETWEEN ? AND ?");
+            $qProcessed->execute([$user['id'], $start, $end]);
+        }
         $processed = (int)$qProcessed->fetchColumn();
 
-        $qGenuine = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='genuine' AND e.received_at BETWEEN ? AND ?");
-        $qGenuine->execute([$user['id'], $start, $end]);
+        if ($clientId) {
+            $qGenuine = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.client_id=? AND l.deleted_at IS NULL AND l.status='genuine' AND e.received_at BETWEEN ? AND ?");
+            $qGenuine->execute([$user['id'], $clientId, $start, $end]);
+        } else {
+            $qGenuine = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='genuine' AND e.received_at BETWEEN ? AND ?");
+            $qGenuine->execute([$user['id'], $start, $end]);
+        }
         $genuine = (int)$qGenuine->fetchColumn();
 
-        $qSpam = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='spam' AND e.received_at BETWEEN ? AND ?");
-        $qSpam->execute([$user['id'], $start, $end]);
+        if ($clientId) {
+            $qSpam = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.client_id=? AND l.deleted_at IS NULL AND l.status='spam' AND e.received_at BETWEEN ? AND ?");
+            $qSpam->execute([$user['id'], $clientId, $start, $end]);
+        } else {
+            $qSpam = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE l.user_id=? AND l.deleted_at IS NULL AND l.status='spam' AND e.received_at BETWEEN ? AND ?");
+            $qSpam->execute([$user['id'], $start, $end]);
+        }
         $spam = (int)$qSpam->fetchColumn();
 
         $genuineRate = $processed > 0 ? round($genuine * 100 / $processed, 1) : 0.0;
@@ -103,11 +132,19 @@ class DashboardController
         $groupMonthly = $spanDays > 370; // if more than ~1 year, group by month
 
         if ($groupMonthly) {
-            $q = $pdo->prepare("SELECT DATE_FORMAT(e.received_at,'%Y-%m') p, l.status, COUNT(*) c
-                                 FROM leads l JOIN emails e ON e.id=l.email_id
-                                 WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
-                                 GROUP BY p, l.status ORDER BY p ASC");
-            $q->execute([$user['id'], $start, $end]);
+            if ($clientId) {
+                $q = $pdo->prepare("SELECT DATE_FORMAT(e.received_at,'%Y-%m') p, l.status, COUNT(*) c
+                                     FROM leads l JOIN emails e ON e.id=l.email_id
+                                     WHERE l.user_id=? AND l.client_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                     GROUP BY p, l.status ORDER BY p ASC");
+                $q->execute([$user['id'], $clientId, $start, $end]);
+            } else {
+                $q = $pdo->prepare("SELECT DATE_FORMAT(e.received_at,'%Y-%m') p, l.status, COUNT(*) c
+                                     FROM leads l JOIN emails e ON e.id=l.email_id
+                                     WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                     GROUP BY p, l.status ORDER BY p ASC");
+                $q->execute([$user['id'], $start, $end]);
+            }
             $rows = $q->fetchAll(\PDO::FETCH_ASSOC);
             $series = [];
             foreach ($rows as $r) { $series[$r['p']][$r['status']] = (int)$r['c']; }
@@ -120,11 +157,19 @@ class DashboardController
                 $chart['unknown'][] = (int)($series[$p]['unknown'] ?? 0);
             }
         } else {
-            $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
-                                     FROM leads l JOIN emails e ON e.id=l.email_id
-                                     WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
-                                     GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
-            $qDaily->execute([$user['id'], $start, $end]);
+            if ($clientId) {
+                $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
+                                         FROM leads l JOIN emails e ON e.id=l.email_id
+                                         WHERE l.user_id=? AND l.client_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                         GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
+                $qDaily->execute([$user['id'], $clientId, $start, $end]);
+            } else {
+                $qDaily = $pdo->prepare("SELECT DATE(e.received_at) d, l.status, COUNT(*) c
+                                         FROM leads l JOIN emails e ON e.id=l.email_id
+                                         WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                         GROUP BY DATE(e.received_at), l.status ORDER BY d ASC");
+                $qDaily->execute([$user['id'], $start, $end]);
+            }
             $dailyRows = $qDaily->fetchAll(\PDO::FETCH_ASSOC);
             $series = [];
             foreach ($dailyRows as $r) { $series[$r['d']][$r['status']] = (int)$r['c']; }
@@ -145,36 +190,66 @@ class DashboardController
         // Status split
         $statusSplit = ['genuine'=>$genuine,'spam'=>$spam,'unknown'=>max(0,$newEmails - ($genuine+$spam))];
 
-        // Top sender domains (from emails in range)
-        $qDomains = $pdo->prepare("SELECT LOWER(SUBSTRING_INDEX(from_email,'@',-1)) dom, COUNT(*) c
-                                   FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ? AND from_email LIKE '%@%'
-                                   GROUP BY dom ORDER BY c DESC LIMIT 10");
-        $qDomains->execute([$user['id'], $start, $end]);
+        // Top sender domains (from emails in range) with optional client filter
+        $clientCode = trim($_GET['client'] ?? '');
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+        $clientId = $client['id'] ?? null;
+        if ($clientId) {
+            $qDomains = $pdo->prepare("SELECT LOWER(SUBSTRING_INDEX(from_email,'@',-1)) dom, COUNT(*) c
+                                       FROM emails WHERE user_id=? AND client_id=? AND received_at BETWEEN ? AND ? AND from_email LIKE '%@%'
+                                       GROUP BY dom ORDER BY c DESC LIMIT 10");
+            $qDomains->execute([$user['id'], $clientId, $start, $end]);
+        } else {
+            $qDomains = $pdo->prepare("SELECT LOWER(SUBSTRING_INDEX(from_email,'@',-1)) dom, COUNT(*) c
+                                       FROM emails WHERE user_id=? AND received_at BETWEEN ? AND ? AND from_email LIKE '%@%'
+                                       GROUP BY dom ORDER BY c DESC LIMIT 10");
+            $qDomains->execute([$user['id'], $start, $end]);
+        }
         $domains = $qDomains->fetchAll(\PDO::FETCH_ASSOC);
 
         // Recent leads
-        $qRecent = $pdo->prepare("SELECT l.*, e.from_email, e.subject, e.received_at
-                                  FROM leads l JOIN emails e ON e.id=l.email_id
-                                  WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
-                                  ORDER BY e.received_at DESC LIMIT 10");
-        $qRecent->execute([$user['id'], $start, $end]);
+        if ($clientId) {
+            $qRecent = $pdo->prepare("SELECT l.*, e.from_email, e.subject, e.received_at
+                                      FROM leads l JOIN emails e ON e.id=l.email_id
+                                      WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ? AND l.client_id = ?
+                                      ORDER BY e.received_at DESC LIMIT 10");
+            $qRecent->execute([$user['id'], $start, $end, $clientId]);
+        } else {
+            $qRecent = $pdo->prepare("SELECT l.*, e.from_email, e.subject, e.received_at
+                                      FROM leads l JOIN emails e ON e.id=l.email_id
+                                      WHERE l.user_id=? AND l.deleted_at IS NULL AND e.received_at BETWEEN ? AND ?
+                                      ORDER BY e.received_at DESC LIMIT 10");
+            $qRecent->execute([$user['id'], $start, $end]);
+        }
         $recent = $qRecent->fetchAll(\PDO::FETCH_ASSOC);
 
-        // System health
-        $qQueue = $pdo->prepare("SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND (l.id IS NULL OR l.status='unknown')");
-        $qQueue->execute([$user['id']]);
+        // System health (respect client filter if provided)
+        if (!empty($clientId)) {
+            $qQueue = $pdo->prepare("SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND e.client_id=? AND (l.id IS NULL OR l.status='unknown')");
+            $qQueue->execute([$user['id'], $clientId]);
+            $lastFetch = $pdo->prepare('SELECT MAX(received_at) FROM emails WHERE user_id=? AND client_id=?');
+            $lastFetch->execute([$user['id'], $clientId]);
+            $lastProcess = $pdo->prepare('SELECT MAX(updated_at) FROM leads WHERE user_id=? AND client_id=?');
+            $lastProcess->execute([$user['id'], $clientId]);
+        } else {
+            $qQueue = $pdo->prepare("SELECT COUNT(*) FROM emails e LEFT JOIN leads l ON l.email_id=e.id AND l.deleted_at IS NULL WHERE e.user_id=? AND (l.id IS NULL OR l.status='unknown')");
+            $qQueue->execute([$user['id']]);
+            $lastFetch = $pdo->prepare('SELECT MAX(received_at) FROM emails WHERE user_id=?');
+            $lastFetch->execute([$user['id']]);
+            $lastProcess = $pdo->prepare('SELECT MAX(updated_at) FROM leads WHERE user_id=?');
+            $lastProcess->execute([$user['id']]);
+        }
         $queue = (int)$qQueue->fetchColumn();
-        $lastFetch = $pdo->prepare('SELECT MAX(received_at) FROM emails WHERE user_id=?');
-        $lastFetch->execute([$user['id']]);
         $lastFetchAt = (string)$lastFetch->fetchColumn();
-        $lastProcess = $pdo->prepare('SELECT MAX(updated_at) FROM leads WHERE user_id=?');
-        $lastProcess->execute([$user['id']]);
         $lastProcessAt = (string)$lastProcess->fetchColumn();
 
+        $clients = \App\Models\Client::listByUser($user['id']);
         View::render('dashboard2/index', [
             'range'=>$quick,
             'start'=>$start,
             'end'=>$end,
+            'clients'=>$clients,
+            'activeClient'=>$clientCode,
             'newEmails'=>$newEmails,
             'processed'=>$processed,
             'genuine'=>$genuine,
@@ -289,6 +364,58 @@ class DashboardController
             Helpers::redirect($return);
         }
         Helpers::redirect('/');
+    }
+
+    public function backfillAssign(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        @set_time_limit(300);
+        $user = Auth::user();
+        $pdo = DB::pdo();
+
+        $stmt = $pdo->prepare('SELECT COUNT(*) FROM emails WHERE user_id = ?');
+        $stmt->execute([$user['id']]);
+        $total = (int)$stmt->fetchColumn();
+
+        $batch = 500; $offset = 0; $assigned = 0; $cleared = 0; $unchanged = 0;
+        while ($offset < $total) {
+            $q = $pdo->prepare('SELECT * FROM emails WHERE user_id = ? ORDER BY id ASC LIMIT ? OFFSET ?');
+            $q->bindValue(1, (int)$user['id'], \PDO::PARAM_INT);
+            $q->bindValue(2, (int)$batch, \PDO::PARAM_INT);
+            $q->bindValue(3, (int)$offset, \PDO::PARAM_INT);
+            $q->execute();
+            $rows = $q->fetchAll(\PDO::FETCH_ASSOC);
+            if (!$rows) break;
+            foreach ($rows as $em) {
+                // Strong-only assignment via current ClientAssigner (thresholded)
+                $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
+                $newClientId = $assign['client_id'] ?? null;
+                $oldClientId = $em['client_id'] ?? null;
+                if ($newClientId !== null && (int)$newClientId !== (int)$oldClientId) {
+                    \App\Models\Email::updateClient((int)$em['id'], (int)$newClientId);
+                    $assigned++;
+                } elseif ($newClientId === null && $oldClientId !== null) {
+                    \App\Models\Email::updateClient((int)$em['id'], null);
+                    $cleared++;
+                } else {
+                    $unchanged++;
+                }
+            }
+            $offset += $batch;
+        }
+
+        // Sync leads.client_id from emails.client_id
+        $sync = $pdo->prepare('UPDATE leads l JOIN emails e ON e.id = l.email_id
+                               SET l.client_id = e.client_id
+                               WHERE l.user_id = ? AND e.user_id = ?');
+        $sync->execute([$user['id'], $user['id']]);
+        $synced = $sync->rowCount();
+
+        $_SESSION['flash'] = 'Backfill complete. Assigned: ' . $assigned . ', Cleared: ' . $cleared . ', Unchanged: ' . $unchanged . ', Leads synced: ' . $synced . '.';
+        $return = trim($_POST['return'] ?? '/dashboard2');
+        if ($return && str_starts_with($return, '/')) { Helpers::redirect($return); }
+        Helpers::redirect('/dashboard2');
     }
 
     public function runFilterAll(): void

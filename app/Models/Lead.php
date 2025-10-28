@@ -15,8 +15,15 @@ class Lead
         $leadId = (int)$stmt->fetchColumn();
         $now = date('Y-m-d H:i:s');
         if ($leadId) {
-            $stmt = $pdo->prepare('UPDATE leads SET status = ?, score = ?, mode = ?, updated_at = ? WHERE id = ?');
-            $stmt->execute([$result['status'], $result['score'], $result['mode'], $now, $leadId]);
+            // When updating an existing lead, also refresh client_id if email has one
+            $clientId = $email['client_id'] ?? null;
+            if ($clientId !== null) {
+                $stmt = $pdo->prepare('UPDATE leads SET client_id = ?, status = ?, score = ?, mode = ?, updated_at = ? WHERE id = ?');
+                $stmt->execute([(int)$clientId, $result['status'], $result['score'], $result['mode'], $now, $leadId]);
+            } else {
+                $stmt = $pdo->prepare('UPDATE leads SET status = ?, score = ?, mode = ?, updated_at = ? WHERE id = ?');
+                $stmt->execute([$result['status'], $result['score'], $result['mode'], $now, $leadId]);
+            }
         } else {
             $stmt = $pdo->prepare('INSERT INTO leads (user_id, email_id, client_id, status, score, mode, created_at, updated_at) VALUES (?,?,?,?,?,?,?,?)');
             $stmt->execute([$email['user_id'], $email['id'], $email['client_id'] ?? null, $result['status'], $result['score'], $result['mode'], $now, $now]);

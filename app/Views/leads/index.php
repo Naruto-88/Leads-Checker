@@ -32,6 +32,11 @@
     <input type="hidden" name="cap" value="5000">
     <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
   </form>
+  <form method="post" action="/action/backfill-assign" class="js-loading-form ms-1">
+    <?php echo App\Security\Csrf::input(); ?>
+    <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
+    <button class="btn btn-sm btn-outline-secondary js-loading-btn" data-loading-text="Backfilling..." data-bs-toggle="tooltip" title="Recompute client assignment (strong rules), clear weak matches, and sync leads">Backfill &amp; Assign</button>
+  </form>
   </div>
 </div>
 
@@ -307,3 +312,5 @@ document.addEventListener('DOMContentLoaded', function () {
   } catch (e) {}
 });
 </script>
+
+

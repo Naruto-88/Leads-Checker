@@ -36,8 +36,11 @@ class Email
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q OR body_html LIKE :q)';
-            $params['q'] = '%' . $opts['search'] . '%';
+            $sql .= ' AND (subject LIKE :q1 OR from_email LIKE :q2 OR body_plain LIKE :q3 OR body_html LIKE :q4)';
+            $params['q1'] = '%' . $opts['search'] . '%';
+            $params['q2'] = '%' . $opts['search'] . '%';
+            $params['q3'] = '%' . $opts['search'] . '%';
+            $params['q4'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
             $sql .= ' AND received_at BETWEEN :start AND :end';
@@ -67,8 +70,11 @@ class Email
             $params['client_id'] = (int)$opts['client_id'];
         }
         if (!empty($opts['search'])) {
-            $sql .= ' AND (subject LIKE :q OR from_email LIKE :q OR body_plain LIKE :q OR body_html LIKE :q)';
-            $params['q'] = '%' . $opts['search'] . '%';
+            $sql .= ' AND (subject LIKE :q1 OR from_email LIKE :q2 OR body_plain LIKE :q3 OR body_html LIKE :q4)';
+            $params['q1'] = '%' . $opts['search'] . '%';
+            $params['q2'] = '%' . $opts['search'] . '%';
+            $params['q3'] = '%' . $opts['search'] . '%';
+            $params['q4'] = '%' . $opts['search'] . '%';
         }
         if (!empty($opts['start']) && !empty($opts['end'])) {
             $sql .= ' AND received_at BETWEEN :start AND :end';
@@ -97,4 +103,9 @@ class Email
         $stmt->execute([$clientId, $emailId]);
     }
 }
+
+
+
+
+
 

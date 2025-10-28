@@ -120,7 +120,7 @@ class SettingsController
         $name = trim($_POST['name'] ?? '');
         $website = trim($_POST['website'] ?? '');
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
-        $emails = trim((string)($_POST['contact_emails'] ?? ''));
+        $emails = isset($_POST['contact_emails']) ? trim((string)$_POST['contact_emails']) : null;
         if (!$name || !$short) { $_SESSION['flash'] = 'Client name and shortcode required.'; Helpers::redirect('/settings'); }
         \App\Models\Client::create(Auth::user()['id'], $name, $website ?: null, $short);
         // Update contact emails if provided
@@ -156,7 +156,7 @@ class SettingsController
             Helpers::redirect('/settings?tab=clients');
         }
         \App\Models\Client::update(Auth::user()['id'], $id, $name, $website ?: null, $short);
-        if ($emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
+        \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, ($emails === '' ? null : $emails));
         Helpers::redirect('/settings?tab=clients');
     }
 
