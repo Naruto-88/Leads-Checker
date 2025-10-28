@@ -24,6 +24,7 @@ class LeadScorer
         // Load user-specific and client-specific settings if available
         $thrGenuine = 70; $thrSpam = 40; $userPos = []; $userNeg = [];
         $clientPos = []; $clientNeg = []; $clientThrG = null; $clientThrS = null; $clientDomainTokens = [];
+        $clientHostFull = null;
         try {
             if (!empty($email['user_id'])) {
                 $settings = \App\Models\Setting::getByUser((int)$email['user_id']);
@@ -47,10 +48,22 @@ class LeadScorer
                     if (!empty($row['filter_neg_keywords'])) { $clientNeg = array_values(array_filter(array_map('trim', preg_split('/[,\n\r]+/', (string)$row['filter_neg_keywords'])))); }
                     if (!empty($row['website'])) {
                         $host = parse_url((string)$row['website'], PHP_URL_HOST) ?: (string)$row['website'];
-                        $host = strtolower($host);
+                        $host = strtolower(trim($host));
                         $host = preg_replace('/^www\./', '', $host);
+                        // Prefer using the full host as a positive indicator instead of short tokens
+                        $clientDomainTokens = [];
+                        if ($host !== '') { $clientDomainTokens[] = $host; $clientHostFull = $host; }
+                        // Add only meaningful subparts (exclude generic TLDs/ccTLDs)
                         $parts = preg_split('/[\.-]+/', (string)$host);
-                        foreach ($parts as $p) { if (strlen($p) >= 3) { $clientDomainTokens[] = $p; } }
+                        $ignore = ['com','net','org','co','au','uk','us','nz','io','app','dev','site','online','shop','store','info','biz','me','tv','in','lk','ca','de','fr','jp','cn','za','asia','email','cloud'];
+                        foreach ($parts as $p) {
+                            $p = trim($p);
+                            if ($p !== '' && strlen($p) >= 4 && !in_array($p, $ignore, true)) {
+                                $clientDomainTokens[] = $p;
+                            }
+                        }
+                        // De-duplicate
+                        $clientDomainTokens = array_values(array_unique($clientDomainTokens));
                     }
                 }
                 if ($clientThrG !== null) { $thrGenuine = $clientThrG; }
@@ -63,7 +76,7 @@ class LeadScorer
         // Positive signals (including client domains) — we will prefer positives over generic negatives
         $phrases = array_unique(array_filter(array_merge([
             'quote','pricing','buy','book','appointment','call me','need service','request','project','inquiry','interested in','estimate','proposal','consultation','demo','trial','meeting','schedule','availability'
-        ], $userPos, $clientPos, $clientDomainTokens)));
+        ], $userPos, $clientPos)));
         $hasPositiveHit = false;
         $to = strtolower($email['to_email'] ?? '');
         foreach ($phrases as $p) {
@@ -72,6 +85,12 @@ class LeadScorer
             $pp = preg_replace('/^https?:\/\//','', strtolower($p));
             if (str_contains($subject, $pp) || str_contains($body, $pp) || ($to && str_contains($to, $pp)) || ($from && str_contains($from, $pp))) {
                 $score += 8; $reasons[] = "+phrase:$p"; $hasPositiveHit = true; break;
+            }
+        }
+        // Treat client host as positive only if present in headers (subject/from/to), not generic body/footer
+        if ($clientHostFull) {
+            if (str_contains($subject, $clientHostFull) || ($to && str_contains($to, $clientHostFull)) || ($from && str_contains($from, $clientHostFull))) {
+                $score += 8; $reasons[] = '+client_host_hdr'; $hasPositiveHit = true;
             }
         }
         if (preg_match('/\b\+?\d[\d\s().-]{7,}\b/', $body)) { $score += 10; $reasons[] = '+phone'; }
@@ -127,6 +146,10 @@ class LeadScorer
             }
         }
         if (preg_match('/unsubscribe|opt\s?out/i', $body)) { $score -= 8; $reasons[] = '-unsubscribe'; }
+        // Penalize BBCode-style links often used in spam
+        if (preg_match('/\[(url|link)=/i', $body)) { $negHits++; $score -= 12; $reasons[] = '-bbcode'; }
+        // Strong pharma spam hints
+        if (preg_match('/\b(furosemide|lasix|viagra|cialis)\b/i', $body)) { $hardHit = true; $score -= 25; $reasons[] = '-pharma'; }
         $links = preg_match_all('/https?:\/\//i', $body);
         if ($links >= 3) { if (!$hasPositiveHit) { $score -= 10; $reasons[] = '-many_links'; } }
         if (preg_match('/bit\.ly|t\.co|goo\.gl|ow\.ly|tinyurl\./i', $body)) { $score -= 10; $reasons[] = '-shortener'; }
@@ -139,7 +162,7 @@ class LeadScorer
         }
 
         // Build allowed host tokens from client domain and any domain-like positive keywords
-        $allowedHostTokens = $clientDomainTokens;
+        $allowedHostTokens = $clientDomainTokens; // includes full host and selected meaningful parts
         foreach (array_merge($userPos, $clientPos) as $kw) {
             if (preg_match('/([a-z0-9][a-z0-9.-]+\.[a-z]{2,})/i', $kw, $m)) {
                 $h = strtolower($m[1]); $h = preg_replace('/^www\./','',$h);
@@ -175,12 +198,12 @@ class LeadScorer
             $status = 'spam';
         } else {
             if ($externalUnknown) {
-                $status = 'unknown';
+                $status = ($hardHit || $negHits >= 1) ? 'spam' : 'unknown';
             } elseif ($hardHit || $negHits >= 2) {
                 $status = 'spam';
             } else {
                 $tiePositive = false;
-                foreach (array_merge($phrases, $clientDomainTokens) as $p) {
+                foreach ($phrases as $p) {
                     if ($p && (str_contains($subject, $p) || str_contains($body, $p))) { $tiePositive = true; break; }
                 }
                 $status = $tiePositive ? 'genuine' : 'spam';
