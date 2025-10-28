@@ -149,8 +149,8 @@ class LeadsController
         }
 
         if (!$didStructured) {
-            // Generic fallback
-            fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
+            // Generic fallback (now includes full Message text)
+            fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode','Message']);
             foreach ($rows as $r) {
                 $plain = (string)($r['body_plain'] ?? '');
                 $html  = (string)($r['body_html'] ?? '');
@@ -169,6 +169,9 @@ class LeadsController
                 } else {
                     $snip = trim($src);
                 }
+                // Full message (plain text) for export consumers that need the entire body
+                $full = \App\Services\LeadParser::htmlToText($plain, $html);
+                if (mb_strlen($full) > 5000) { $full = mb_substr($full, 0, 5000); }
                 fputcsv($out, [
                     $r['from_email'],
                     $r['subject'],
@@ -176,7 +179,8 @@ class LeadsController
                     $r['received_at'],
                     $r['status'],
                     $r['score'],
-                    $r['mode']
+                    $r['mode'],
+                    $full
                 ]);
             }
         }
