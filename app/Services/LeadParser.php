@@ -25,7 +25,11 @@ class LeadParser
     {
         $code = strtoupper(trim($clientShortcode));
         if ($code === 'BHR' || stripos($clientName, 'Better Home Removals') !== false) {
-            return ['Name','Contact Number','Email','Preferred Time','From Suburb','To Suburb','About Move','Bedrooms','Move Date','Comments'];
+            // Include both BHR move form fields and alternate form fields (e.g., Extend A Home)
+            return [
+                'Name','Contact Number','Email','Preferred Time','From Suburb','To Suburb','About Move','Bedrooms','Move Date','Comments',
+                'Council Area','First Name','Last Name','Street Address','Suburb','Postcode','Mobile','Home Contact Number','Type of Renovation Work','How did you hear about us'
+            ];
         }
         if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
             return ['Name','Email','Phone Number','Message'];
@@ -56,6 +60,17 @@ class LeadParser
                 'Bedrooms' => self::matchFirst($text, '/^\s*Number\s*of\s*bedrooms\s*:\s*(.+)$/im'),
                 'Move Date' => self::matchFirst($text, '/^\s*Date\s*of\s*your\s*move\s*\(.*\)\s*:\s*(.+)$/im'),
                 'Comments' => self::extractCommentsBHR($text),
+                // Alternate form fields
+                'Council Area' => self::matchFirst($text, '/^\s*Council\s*Area\s*:\s*(.+)$/im'),
+                'First Name' => self::matchFirst($text, '/^\s*First\s*Name\s*:\s*(.+)$/im'),
+                'Last Name' => self::matchFirst($text, '/^\s*Last\s*Name\s*:\s*(.+)$/im'),
+                'Street Address' => self::matchFirst($text, '/^\s*Street\s*Address\s*:\s*(.+)$/im'),
+                'Suburb' => self::matchFirst($text, '/^\s*Suburb\s*:\s*(.+)$/im'),
+                'Postcode' => self::matchFirst($text, '/^\s*Postcode\s*:\s*(.+)$/im'),
+                'Mobile' => self::matchFirst($text, '/^\s*Mobile\s*:\s*([\d\s+().-]{6,})$/im'),
+                'Home Contact Number' => self::matchFirst($text, '/^\s*Home\s*Contact\s*Number\s*:\s*([\d\s+().-]{6,})$/im'),
+                'Type of Renovation Work' => self::matchFirst($text, '/^\s*Type\s*of\s*Renovation\s*Work\s*:\s*(.+)$/im'),
+                'How did you hear about us' => self::matchFirst($text, '/^\s*How\s*did\s*you\s*hear\s*about\s*us\s*:\s*(.+)$/im'),
             ];
             return $out;
         }
