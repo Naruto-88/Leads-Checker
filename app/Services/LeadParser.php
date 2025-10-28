@@ -66,6 +66,7 @@ class LeadParser
             $phone = self::matchFirst($text, '/^\s*(Phone\s*Number|Phone|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2);
             $msg = self::extractMessageAfterLabel($text, 'Message');
             if ($msg === '') { $msg = self::extractMessageAfterLabel($text, 'Message Body'); }
+            if ($msg === '') { $msg = self::extractTailAfterKnownLabels($text); }
             $out = [
                 'Name' => $name,
                 'Email' => $email,
@@ -156,5 +157,38 @@ class LeadParser
         }
         // Fallback to generic comments extractor
         return self::extractComments($text);
+    }
+
+    private static function extractTailAfterKnownLabels(string $text): string
+    {
+        // Find the last occurrence of common labels, then take everything after
+        $labels = [
+            '/^\s*(Name|From)\s*:\s*.+$/im',
+            '/^\s*Email\s*:\s*.+$/im',
+            '/^\s*(Phone\s*Number|Phone|Contact)\s*:\s*.+$/im',
+            '/^\s*Subject\s*:\s*.+$/im',
+        ];
+        $last = 0;
+        foreach ($labels as $rx) {
+            if (preg_match_all($rx, $text, $m, PREG_OFFSET_CAPTURE)) {
+                $hit = end($m[0]);
+                $pos = $hit[1] + strlen($hit[0]);
+                if ($pos > $last) { $last = $pos; }
+            }
+        }
+        $tail = $last > 0 ? substr($text, $last) : $text;
+        // Strip labeled lines and footer
+        $lines = preg_split('/\r?\n/', (string)$tail);
+        $out = [];
+        foreach ($lines as $ln) {
+            $s = trim($ln);
+            if ($s === '') continue;
+            if (preg_match('/^\s*[A-Za-z][A-Za-z \t]+:\s+.+$/', $s)) continue;
+            if (stripos($s, 'This email was sent from a contact form') !== false) break;
+            $out[] = $s;
+        }
+        $msg = trim(implode(" \n", $out));
+        if (mb_strlen($msg) > 5000) { $msg = mb_substr($msg, 0, 5000); }
+        return $msg;
     }
 }
