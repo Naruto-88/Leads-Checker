@@ -127,8 +127,23 @@ class LeadsController
         $out = fopen('php://output', 'w');
         fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
         foreach ($rows as $r) {
-            $snip = $r['body_plain'] ?? '';
-            if ($snip==='') { $snip = strip_tags($r['body_html'] ?? ''); }
+            $plain = (string)($r['body_plain'] ?? '');
+            $html  = (string)($r['body_html'] ?? '');
+            $looksHtmlPlain = ($plain !== '' && preg_match('/<[^>]+>/', $plain));
+            $src = $plain !== '' ? $plain : $html;
+            if ($looksHtmlPlain || ($plain === '' && $html !== '')) {
+                $t = $src;
+                $t = preg_replace('/<\s*br\s*\/?\s*>/i', "\n", $t);
+                $t = preg_replace('/<\/(p|div|li|tr|h[1-6])\s*>/i', "\n", $t);
+                $t = preg_replace('/<\/(ul|ol|table|thead|tbody|tfoot)\s*>/i', "\n\n", $t);
+                $t = strip_tags($t);
+                $t = html_entity_decode($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                $t = preg_replace("/\n{3,}/", "\n\n", $t);
+                $t = preg_replace('/[\t\x{00A0}]+/u', ' ', $t);
+                $snip = trim($t);
+            } else {
+                $snip = trim($src);
+            }
             fputcsv($out, [
                 $r['from_email'],
                 $r['subject'],
