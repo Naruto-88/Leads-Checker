@@ -123,36 +123,62 @@ class LeadsController
             'start'=>$start,'end'=>$end,'search'=>$search,'status'=>$status,'client_id'=>$client['id'] ?? null
         ]);
         header('Content-Type: text/csv');
-        header('Content-Disposition: attachment; filename="leads_' . $status . '.csv"');
+        $fname = 'leads_' . ($clientCode ?: 'all') . '_' . $status . '.csv';
+        header('Content-Disposition: attachment; filename="' . $fname . '"');
         $out = fopen('php://output', 'w');
-        fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
-        foreach ($rows as $r) {
-            $plain = (string)($r['body_plain'] ?? '');
-            $html  = (string)($r['body_html'] ?? '');
-            $looksHtmlPlain = ($plain !== '' && preg_match('/<[^>]+>/', $plain));
-            $src = $plain !== '' ? $plain : $html;
-            if ($looksHtmlPlain || ($plain === '' && $html !== '')) {
-                $t = $src;
-                $t = preg_replace('/<\s*br\s*\/?\s*>/i', "\n", $t);
-                $t = preg_replace('/<\/(p|div|li|tr|h[1-6])\s*>/i', "\n", $t);
-                $t = preg_replace('/<\/(ul|ol|table|thead|tbody|tfoot)\s*>/i', "\n\n", $t);
-                $t = strip_tags($t);
-                $t = html_entity_decode($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-                $t = preg_replace("/\n{3,}/", "\n\n", $t);
-                $t = preg_replace('/[\t\x{00A0}]+/u', ' ', $t);
-                $snip = trim($t);
-            } else {
-                $snip = trim($src);
+
+        // If a specific client is selected, try structured export via LeadParser
+        $didStructured = false;
+        if ($client) {
+            $headers = \App\Services\LeadParser::headersFor($client['shortcode'] ?? '', $client['name'] ?? '');
+            if ($headers && $headers[0] !== 'From') {
+                fputcsv($out, $headers);
+                foreach ($rows as $r) {
+                    $parsed = \App\Services\LeadParser::parseFor($client['shortcode'] ?? '', $client['name'] ?? '', $r);
+                    if ($parsed !== null) {
+                        $rowOut = [];
+                        foreach ($headers as $h) { $rowOut[] = $parsed[$h] ?? ''; }
+                        fputcsv($out, $rowOut);
+                    } else {
+                        // Fallback to basic mapping
+                        fputcsv($out, array_fill(0, count($headers), ''));
+                    }
+                }
+                $didStructured = true;
             }
-            fputcsv($out, [
-                $r['from_email'],
-                $r['subject'],
-                mb_substr($snip, 0, 160),
-                $r['received_at'],
-                $r['status'],
-                $r['score'],
-                $r['mode']
-            ]);
+        }
+
+        if (!$didStructured) {
+            // Generic fallback
+            fputcsv($out, ['From','Subject','Snippet','Received','Status','Score','Mode']);
+            foreach ($rows as $r) {
+                $plain = (string)($r['body_plain'] ?? '');
+                $html  = (string)($r['body_html'] ?? '');
+                $looksHtmlPlain = ($plain !== '' && preg_match('/<[^>]+>/', $plain));
+                $src = $plain !== '' ? $plain : $html;
+                if ($looksHtmlPlain || ($plain === '' && $html !== '')) {
+                    $t = $src;
+                    $t = preg_replace('/<\s*br\s*\/?\s*>/i', "\n", $t);
+                    $t = preg_replace('/<\/(p|div|li|tr|h[1-6])\s*>/i', "\n", $t);
+                    $t = preg_replace('/<\/(ul|ol|table|thead|tbody|tfoot)\s*>/i', "\n\n", $t);
+                    $t = strip_tags($t);
+                    $t = html_entity_decode($t, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                    $t = preg_replace("/\n{3,}/", "\n\n", $t);
+                    $t = preg_replace('/[\t\x{00A0}]+/u', ' ', $t);
+                    $snip = trim($t);
+                } else {
+                    $snip = trim($src);
+                }
+                fputcsv($out, [
+                    $r['from_email'],
+                    $r['subject'],
+                    mb_substr($snip, 0, 160),
+                    $r['received_at'],
+                    $r['status'],
+                    $r['score'],
+                    $r['mode']
+                ]);
+            }
         }
         fclose($out);
     }
