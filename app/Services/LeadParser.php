@@ -49,7 +49,7 @@ class LeadParser
                 'About Move' => self::matchFirst($text, '/^\s*About\s*your\s*move\s*:\s*(.+)$/im'),
                 'Bedrooms' => self::matchFirst($text, '/^\s*Number\s*of\s*bedrooms\s*:\s*(.+)$/im'),
                 'Move Date' => self::matchFirst($text, '/^\s*Date\s*of\s*your\s*move\s*\(.*\)\s*:\s*(.+)$/im'),
-                'Comments' => self::extractComments($text),
+                'Comments' => self::extractCommentsBHR($text),
             ];
             return $out;
         }
@@ -79,5 +79,34 @@ class LeadParser
         if (mb_strlen($comment) > 5000) { $comment = mb_substr($comment, 0, 5000); }
         return $comment;
     }
-}
 
+    private static function extractCommentsBHR(string $text): string
+    {
+        // For BHR forms, free-text usually follows the Move Date line
+        $pos = null;
+        if (preg_match('/^\s*Date\s*of\s*your\s*move.*?:\s*.+$/im', $text, $m, PREG_OFFSET_CAPTURE)) {
+            $pos = $m[0][1] + strlen($m[0][0]);
+        } elseif (preg_match('/^\s*Number\s*of\s*bedrooms\s*:\s*.+$/im', $text, $m, PREG_OFFSET_CAPTURE)) {
+            $pos = $m[0][1] + strlen($m[0][0]);
+        } elseif (preg_match('/^\s*About\s*your\s*move\s*:\s*.+$/im', $text, $m, PREG_OFFSET_CAPTURE)) {
+            $pos = $m[0][1] + strlen($m[0][0]);
+        }
+        $tail = $pos !== null ? substr($text, $pos) : $text;
+        // Remove common footer and labeled lines
+        $lines = preg_split('/\r?\n/', (string)$tail);
+        $outLines = [];
+        foreach ($lines as $ln) {
+            $s = trim($ln);
+            if ($s === '') continue;
+            if (stripos($s, 'This email was sent from a contact form') !== false) break;
+            if (preg_match('/^\s*[A-Za-z][A-Za-z \t]+:\s+.+$/', $s)) continue;
+            // Skip tracking/single-pixel artifacts
+            if (preg_match('/^<img\b/i', $s)) continue;
+            $outLines[] = $s;
+        }
+        $comment = trim(implode(" \n", $outLines));
+        if ($comment === '') { $comment = self::extractComments($text); }
+        if (mb_strlen($comment) > 5000) { $comment = mb_substr($comment, 0, 5000); }
+        return $comment;
+    }
+}
