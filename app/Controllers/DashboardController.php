@@ -244,12 +244,17 @@ class DashboardController
         $lastProcessAt = (string)$lastProcess->fetchColumn();
 
         $clients = \App\Models\Client::listByUser($user['id']);
+        // Genuine counts per client for selected range (for badges)
+        $genuineCounts = \App\Models\Lead::genuineCountsByClient($user['id'], $start, $end);
+        $genuineTotal = \App\Models\Lead::genuineTotal($user['id'], $start, $end);
         View::render('dashboard2/index', [
             'range'=>$quick,
             'start'=>$start,
             'end'=>$end,
             'clients'=>$clients,
             'activeClient'=>$clientCode,
+            'genuineCounts'=>$genuineCounts ?? [],
+            'genuineTotal'=>$genuineTotal ?? 0,
             'newEmails'=>$newEmails,
             'processed'=>$processed,
             'genuine'=>$genuine,

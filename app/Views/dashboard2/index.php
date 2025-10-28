@@ -70,15 +70,22 @@
 
 <?php if (!empty($clients)): ?>
 <div class="mb-2">
-  <div class="btn-group btn-group-sm" role="group">
+  <div class="btn-group btn-group-sm clients-filter-group" role="group">
     <?php
       $base = ['range'=>$range];
       if ($range==='custom') { $base['start']=substr($start,0,10); $base['end']=substr($end,0,10); }
       $hrefAll = '/dashboard2?' . http_build_query($base);
     ?>
-    <a class="btn btn-outline-secondary <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo $hrefAll; ?>">All Clients</a>
-    <?php foreach (($clients ?? []) as $c): $qs = $base; $qs['client'] = $c['shortcode']; ?>
-      <a class="btn btn-outline-secondary <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/dashboard2?' . http_build_query($qs); ?>"><?php echo Helpers::e($c['shortcode']); ?></a>
+    <?php $totalBadge = (int)($genuineTotal ?? 0); ?>
+    <a class="btn btn-outline-secondary position-relative <?php echo empty($activeClient)?'active':''; ?>" href="<?php echo $hrefAll; ?>">
+      All Clients
+      <span class="badge rounded-pill bg-success client-badge"><?php echo $totalBadge; ?></span>
+    </a>
+    <?php foreach (($clients ?? []) as $c): $qs = $base; $qs['client'] = $c['shortcode']; $cnt = (int)($genuineCounts[$c['id']] ?? 0); ?>
+      <a class="btn btn-outline-secondary position-relative <?php echo ($activeClient===$c['shortcode']?'active':''); ?>" href="<?php echo '/dashboard2?' . http_build_query($qs); ?>">
+        <?php echo Helpers::e($c['shortcode']); ?>
+        <span class="badge rounded-pill bg-success client-badge"><?php echo $cnt; ?></span>
+      </a>
     <?php endforeach; ?>
   </div>
 </div>
@@ -239,6 +246,16 @@ document.addEventListener('DOMContentLoaded', function(){
   }
 });
 </script>
+
+<style>
+/* Centered badges above client buttons without clipping */
+.clients-filter-group { overflow: visible; gap: .25rem; }
+.clients-filter-group .btn { position: relative; overflow: visible; padding-top: .6rem; }
+.clients-filter-group .client-badge {
+  position: absolute; left: 50%; top: 0; transform: translate(-50%, -55%);
+  pointer-events: none; z-index: 2; font-weight: 600;
+}
+</style>
 
 <style>
 .dashboard2 .row.g-3 { --bs-gutter-x: .75rem; --bs-gutter-y: .75rem; }
