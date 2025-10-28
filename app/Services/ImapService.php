@@ -32,6 +32,17 @@ class ImapService
         if (!function_exists('imap_open')) {
             throw new \RuntimeException('PHP IMAP extension not enabled.');
         }
+        // Ensure we have a place to store last seen UID for incremental fetching
+        self::ensureLastUidColumn();
+        $lastUid = isset($acc['last_uid']) ? (int)$acc['last_uid'] : 0;
+
+        // Be conservative with timeouts so we fail fast on slow servers
+        if (function_exists('imap_set_timeout')) {
+            @imap_set_timeout(1, 10); // open timeout
+            @imap_set_timeout(2, 10); // read timeout
+            @imap_set_timeout(3, 10); // write timeout
+            @imap_set_timeout(4, 10); // close timeout
+        }
         $encPass = $acc['password_enc'];
         $password = \App\Helpers::decryptSecret($encPass, DB::env('APP_KEY','')) ?? '';
         $transport = $acc['encryption'] === 'ssl' ? 'ssl' : ($acc['encryption']==='tls' ? 'tls' : 'notls');
@@ -40,11 +51,22 @@ class ImapService
         if (!$inbox) {
             throw new \RuntimeException('IMAP connect failed: ' . imap_last_error());
         }
-        $sinceDate = date('d-M-Y', strtotime('-'.$daysBack.' days'));
-        $emails = imap_search($inbox, 'ALL SINCE "' . $sinceDate . '"', SE_UID) ?: [];
-        $emails = array_slice($emails, -$limit);
+        $uids = [];
+        if ($lastUid > 0) {
+            // Delta fetch: only messages with UID greater than last seen
+            $uids = imap_search($inbox, 'UID ' . ($lastUid + 1) . ':*', SE_UID) ?: [];
+        } else {
+            // First-time or no marker: fall back to date-based query
+            $sinceDate = date('d-M-Y', strtotime('-'.$daysBack.' days'));
+            $uids = imap_search($inbox, 'ALL SINCE "' . $sinceDate . '"', SE_UID) ?: [];
+        }
+        sort($uids, SORT_NUMERIC);
+        if ($limit > 0 && count($uids) > $limit) {
+            $uids = array_slice($uids, -$limit);
+        }
         $fetched = 0;
-        foreach ($emails as $uid) {
+        $maxUid = $lastUid;
+        foreach ($uids as $uid) {
             $header = imap_headerinfo($inbox, imap_msgno($inbox, $uid));
             $messageId = isset($header->message_id) ? trim($header->message_id, '<>') : null;
             $from_email = $header->from[0]->mailbox . '@' . $header->from[0]->host;
@@ -52,19 +74,27 @@ class ImapService
             $to_email = isset($header->to[0]) ? ($header->to[0]->mailbox . '@' . $header->to[0]->host) : null;
             $subject = imap_utf8($header->subject ?? '');
             $date = date('Y-m-d H:i:s', strtotime($header->date ?? 'now'));
+            $hash = hash('sha256', $from_email . '|' . $subject . '|' . $date);
+            if (Email::existsByMessageIdOrHash($messageId, $hash)) {
+                if ($uid > $maxUid) { $maxUid = $uid; }
+                continue;
+            }
 
+            // Lazily fetch body only when we know it's new
             $structure = imap_fetchstructure($inbox, $uid, FT_UID);
             $body_plain = null; $body_html = null;
             if (!isset($structure->parts)) {
                 $text = imap_body($inbox, $uid, FT_UID);
                 $body_plain = self::decodePart($inbox, $uid, $structure, 1) ?: $text;
             } else {
+                // Fetch plain text first, only fall back to HTML if empty
                 $body_plain = self::getPart($inbox, $uid, 'TEXT/PLAIN');
-                $body_html = self::getPart($inbox, $uid, 'TEXT/HTML');
-            }
-            $hash = hash('sha256', $from_email . '|' . $subject . '|' . $date);
-            if (Email::existsByMessageIdOrHash($messageId, $hash)) {
-                continue;
+                if ($body_plain === null || $body_plain === '') {
+                    $body_html = self::getPart($inbox, $uid, 'TEXT/HTML');
+                } else {
+                    // Optionally skip HTML to save bandwidth if plain exists
+                    $body_html = null;
+                }
             }
             // Determine client assignment: prefer account mapping; else heuristic assigner
             $clientId = isset($acc['client_id']) && $acc['client_id'] ? (int)$acc['client_id'] : null;
@@ -95,9 +125,28 @@ class ImapService
                 'hash' => $hash,
             ]);
             $fetched++;
+            if ($uid > $maxUid) { $maxUid = $uid; }
         }
         imap_close($inbox);
+        // Persist last seen UID marker
+        if ($maxUid > $lastUid) {
+            try {
+                $stmt = DB::pdo()->prepare('UPDATE email_accounts SET last_uid = ? WHERE id = ? AND user_id = ?');
+                $stmt->execute([(int)$maxUid, (int)$acc['id'], (int)$userId]);
+            } catch (\Throwable $e) {
+                // ignore
+            }
+        }
         return $fetched;
+    }
+
+    private static function ensureLastUidColumn(): void
+    {
+        try {
+            DB::pdo()->exec('ALTER TABLE email_accounts ADD COLUMN last_uid INT NULL AFTER folder');
+        } catch (\Throwable $e) {
+            // ignore if exists or insufficient privileges
+        }
     }
 
     private static function getPart($inbox, $uid, string $mimetype, $structure = null, $partNumber = null)
