@@ -87,9 +87,9 @@ class LeadParser
             $mobile = self::matchFirst($text, '/^\s*(Mobile|Phone|Phone\s*Number|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2);
             $guests = self::matchFirst($text, '/^\s*(How\s*many\s*guests|Guests)\s*:\s*(.+)$/im', 2);
             $date = self::matchFirst($text, '/^\s*(Preferred\s*Date|Date)\s*:\s*(.+)$/im', 2);
+            // For Message, only include the "Enquiry and questions" section (no full email fallback)
             $message = self::extractMessageAfterLabel($text, 'Enquiry and questions');
-            if ($message === '') { $message = self::extractMessageAfterLabel($text, 'Message'); }
-            if ($message === '') { $message = self::extractTailAfterKnownLabels($text); }
+            if ($message === '') { $message = self::extractMessageAfterLabel($text, 'Enquiry & questions'); }
             return [
                 'First Name' => $first,
                 'Email' => $email,
