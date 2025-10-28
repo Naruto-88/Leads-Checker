@@ -27,6 +27,9 @@ class LeadParser
         if ($code === 'BHR' || stripos($clientName, 'Better Home Removals') !== false) {
             return ['Name','Contact Number','Email','Preferred Time','From Suburb','To Suburb','About Move','Bedrooms','Move Date','Comments'];
         }
+        if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
+            return ['Name','Email','Phone Number','Message'];
+        }
         // Default/generic
         return ['From','Subject','Snippet','Received','Status','Score','Mode'];
     }
@@ -50,6 +53,16 @@ class LeadParser
                 'Bedrooms' => self::matchFirst($text, '/^\s*Number\s*of\s*bedrooms\s*:\s*(.+)$/im'),
                 'Move Date' => self::matchFirst($text, '/^\s*Date\s*of\s*your\s*move\s*\(.*\)\s*:\s*(.+)$/im'),
                 'Comments' => self::extractCommentsBHR($text),
+            ];
+            return $out;
+        }
+        if ($code === 'AA' || stripos($clientName, 'Australian Account') !== false) {
+            // Typical AA contact form fields: Name, Email, Phone Number, Message
+            $out = [
+                'Name' => self::matchFirst($text, '/^\s*Name\s*:\s*(.+)$/im'),
+                'Email' => self::matchFirst($text, '/^\s*Email\s*:\s*([^\s]+)\s*$/im'),
+                'Phone Number' => self::matchFirst($text, '/^\s*(Phone\s*Number|Phone|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2),
+                'Message' => self::extractMessageAfterLabel($text, 'Message'),
             ];
             return $out;
         }
@@ -108,5 +121,32 @@ class LeadParser
         if ($comment === '') { $comment = self::extractComments($text); }
         if (mb_strlen($comment) > 5000) { $comment = mb_substr($comment, 0, 5000); }
         return $comment;
+    }
+
+    private static function extractMessageAfterLabel(string $text, string $label): string
+    {
+        // Extract everything after a specific label (e.g., Message:)
+        $pattern = '/^\s*' . preg_quote($label, '/') . '\s*:\s*(.*)$/im';
+        if (preg_match($pattern, $text, $m, PREG_OFFSET_CAPTURE)) {
+            $startOffset = $m[0][1];
+            $startLen = strlen($m[0][0]);
+            $tail = substr($text, $startOffset + $startLen);
+            $tail = trim($m[1][0] . "\n" . $tail);
+            // Remove any trailing labeled lines or footers
+            $lines = preg_split('/\r?\n/', $tail);
+            $out = [];
+            foreach ($lines as $ln) {
+                $s = trim($ln);
+                if ($s === '') continue;
+                if (preg_match('/^\s*[A-Za-z][A-Za-z \t]+:\s+.+$/', $s)) continue;
+                if (stripos($s, 'This email was sent from a contact form') !== false) break;
+                $out[] = $s;
+            }
+            $msg = trim(implode(" \n", $out));
+            if (mb_strlen($msg) > 5000) { $msg = mb_substr($msg, 0, 5000); }
+            return $msg;
+        }
+        // Fallback to generic comments extractor
+        return self::extractComments($text);
     }
 }
