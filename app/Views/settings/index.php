@@ -46,9 +46,23 @@
         <label class="form-label">Negative keywords (comma or new line)</label>
         <textarea class="form-control" name="neg_keywords" rows="3" placeholder="casino, crypto, guest post, ..."><?php echo htmlspecialchars($settings['filter_neg_keywords'] ?? ''); ?></textarea>
       </div>
-      <div class="col-12">
+      <div class="col-12 d-flex align-items-center gap-2 flex-wrap">
         <button class="btn btn-primary">Save</button>
-      </div><form method="post" action="/settings/train-local-ml" class="d-inline ms-2 js-loading-form"><?php echo Csrf::input(); ?><button class="btn btn-outline-success js-loading-btn" data-loading-text="Training..." title="Train local ML model from labeled leads (genuine/spam)">Train Local Model</button></form><form method="post" action="/settings/compare-local-gpt" class="d-inline ms-2 js-loading-form"><?php echo Csrf::input(); ?><select name="range" class="form-select form-select-sm d-inline w-auto"><option value="last_7">Last 7</option><option value="last_30">Last 30</option><option value="all">All</option></select><input name="client" class="form-control form-control-sm d-inline w-auto ms-1" placeholder="Client shortcode (optional)"><button class="btn btn-outline-secondary js-loading-btn ms-1" data-loading-text="Comparing..." title="Compare Local ML vs stored GPT labels on a subset">Compare Local vs GPT</button></form>
+        <form method="post" action="/settings/train-local-ml" class="d-inline js-loading-form">
+          <?php echo Csrf::input(); ?>
+          <button class="btn btn-outline-success js-loading-btn" data-loading-text="Training..." title="Train local ML model from labeled leads (genuine/spam)">Train Local Model</button>
+        </form>
+        <form method="post" action="/settings/compare-local-gpt" class="d-inline js-loading-form">
+          <?php echo Csrf::input(); ?>
+          <select name="range" class="form-select form-select-sm d-inline w-auto">
+            <option value="last_7">Last 7</option>
+            <option value="last_30">Last 30</option>
+            <option value="all">All</option>
+          </select>
+          <input name="client" class="form-control form-control-sm d-inline w-auto ms-1" placeholder="Client shortcode (optional)">
+          <button class="btn btn-outline-secondary js-loading-btn ms-1" data-loading-text="Comparing..." title="Compare Local ML vs stored GPT labels on a subset">Compare Local vs GPT</button>
+        </form>
+      </div>
     </form>
   </div>
 

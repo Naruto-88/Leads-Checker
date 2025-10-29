@@ -50,7 +50,7 @@ class SettingsController
     {
         Auth::requireLogin();
         if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
-        $mode = in_array($_POST['filter_mode'] ?? 'algorithmic', ['algorithmic','gpt']) ? $_POST['filter_mode'] : 'algorithmic';
+        $mode = in_array($_POST['filter_mode'] ?? 'algorithmic', ['algorithmic','gpt','local_ml']) ? $_POST['filter_mode'] : 'algorithmic';
         $apiKey = trim($_POST['openai_api_key'] ?? '');
         $openaiEnc = $apiKey ? \App\Helpers::encryptSecret($apiKey, DB::env('APP_KEY','')) : null;
         $thrG = max(0, min(100, (int)($_POST['threshold_genuine'] ?? 70)));
