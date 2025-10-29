@@ -615,13 +615,36 @@ class DashboardController
         header('Content-Type: application/json');
         $user = Auth::user();
         $progressFile = BASE_PATH . '/storage/logs/repgpt_user_' . (int)$user['id'] . '.json';
-        @file_put_contents($progressFile, json_encode(['started'=>date('c'),'done'=>false,'total'=>0,'processed'=>0]));
+
+        // Validate GPT availability before launching
+        $settings = \App\Models\Setting::getByUser($user['id']);
+        $mode = $settings['filter_mode'] ?? 'algorithmic';
+        $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
+        if ($mode !== 'gpt' || !$openaiKey) {
+            echo json_encode(['ok'=>false,'error'=>'GPT mode not enabled or API key missing.']);
+            return;
+        }
 
         $client = trim($_POST['client'] ?? '');
         $start = trim($_POST['start'] ?? '');
         $end = trim($_POST['end'] ?? '');
         $batch = (int)($_POST['batch'] ?? 200);
         $cap = (int)($_POST['cap'] ?? 1000);
+
+        // Precompute total eligible
+        $pdo = DB::pdo();
+        $clientId = null;
+        if ($client !== '') { $c = \App\Models\Client::findByShortcode($user['id'], $client); if ($c) { $clientId = (int)$c['id']; } }
+        $where = 'l.user_id = :uid AND l.deleted_at IS NULL AND (l.mode IS NULL OR l.mode = "algorithmic") AND NOT EXISTS (SELECT 1 FROM lead_checks lc WHERE lc.lead_id=l.id AND lc.mode="manual")';
+        $params = [':uid'=>(int)$user['id']];
+        if ($clientId) { $where .= ' AND l.client_id = :cid'; $params[':cid'] = $clientId; }
+        if ($start !== '' && $end !== '') { $where .= ' AND e.received_at BETWEEN :start AND :end'; $params[':start']=$start; $params[':end']=$end; }
+        $q = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.email_id WHERE $where");
+        foreach ($params as $k=>$v) { $q->bindValue($k, $v, is_int($v)?\PDO::PARAM_INT:\PDO::PARAM_STR); }
+        $q->execute();
+        $total = (int)$q->fetchColumn();
+        if ($total <= 0) { echo json_encode(['ok'=>false,'error'=>'No eligible algorithmic leads found for selected filters.']); return; }
+        @file_put_contents($progressFile, json_encode(['started'=>date('c'),'done'=>false,'total'=>$total,'processed'=>0]));
         $args = [(int)$user['id']];
         if ($client !== '') { $args[] = '--client=' . $client; }
         if ($start !== '') { $args[] = '--start=' . $start; }

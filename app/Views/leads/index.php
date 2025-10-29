@@ -340,6 +340,7 @@ document.addEventListener('DOMContentLoaded', function () {
               if (!res.ok) return;
               const p = await res.json();
               if (p && typeof p.processed !== 'undefined') {
+                if (p.error) { info.textContent = `Error: ${p.error}`; if (btn) { btn.disabled=false; btn.textContent='Reprocess with GPT'; } return; }
                 info.textContent = p.done ? `Done. Reprocessed ${p.processed} of ${p.total}.` : `Reprocessing ${p.processed} of ${p.total}...`;
                 if (!p.done) { setTimeout(tick, 1000); } else if (btn) { btn.disabled=false; btn.textContent='Reprocess with GPT'; }
               }

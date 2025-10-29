@@ -30,7 +30,12 @@ for ($i=2; $i<$argc; $i++) {
 $pdo = \App\Core\DB::pdo();
 $settings = \App\Models\Setting::getByUser($userId);
 $key = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, \App\Core\DB::env('APP_KEY',''));
-if (!$key) { fwrite(STDERR, "Missing OpenAI key for user\n"); exit(2); }
+$progressFile = BASE_PATH . '/storage/logs/repgpt_user_' . $userId . '.json';
+if (!$key) {
+    @file_put_contents($progressFile, json_encode(['processed'=>0,'total'=>0,'done'=>true,'error'=>'Missing OpenAI key for user']));
+    fwrite(STDERR, "Missing OpenAI key for user\n");
+    exit(2);
+}
 $strict = (int)($settings['strict_gpt'] ?? 0) === 1;
 $client = new \App\Services\OpenAIClient($key);
 
@@ -50,7 +55,6 @@ $qCount = $pdo->prepare("SELECT COUNT(*) FROM leads l JOIN emails e ON e.id=l.em
 foreach ($params as $k=>$v) { $qCount->bindValue($k, $v); }
 $qCount->execute(); $total = (int)$qCount->fetchColumn();
 
-$progressFile = BASE_PATH . '/storage/logs/repgpt_user_' . $userId . '.json';
 @file_put_contents($progressFile, json_encode(['processed'=>0,'total'=>$total,'done'=>false]));
 
 $processed = 0; $offset = 0;
@@ -81,4 +85,3 @@ while ($processed < $cap) {
 
 @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>true]));
 echo "Reprocessed $processed of $total leads\n";
-
