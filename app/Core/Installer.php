@@ -124,5 +124,19 @@ class Installer
         if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_pos_keywords TEXT NULL AFTER filter_threshold_spam"); }
         $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_neg_keywords'")->fetch();
         if (!$cols) { $pdo->exec("ALTER TABLE clients ADD COLUMN filter_neg_keywords TEXT NULL AFTER filter_pos_keywords"); }
+
+        // Performance indexes for faster filtering and fetching
+        try {
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_emails_user_received ON emails (user_id, received_at)");
+        } catch (\Throwable $e) {}
+        try {
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_emails_user_id ON emails (user_id, id)");
+        } catch (\Throwable $e) {}
+        try {
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_leads_user_email ON leads (user_id, email_id, deleted_at)");
+        } catch (\Throwable $e) {}
+        try {
+            $pdo->exec("CREATE INDEX IF NOT EXISTS idx_leads_user_status ON leads (user_id, status)");
+        } catch (\Throwable $e) {}
     }
 }
