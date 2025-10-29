@@ -12,6 +12,25 @@ use App\Core\DB;
 class SettingsController
 {
     public function __construct(private array $env) {}
+    public function trainLocalMl(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        require_once BASE_PATH . '/tools/train_local_model.php';
+        try {
+            $res = \Tools\TrainLocalModel\run(Auth::user()['id']);
+            if (!($res['ok'] ?? false)) {
+                $_SESSION['flash'] = 'Training failed: ' . ($res['error'] ?? 'unknown');
+            } else {
+                $_SESSION['flash'] = 'Local model trained: ' . ($res['count'] ?? 0) . ' rows; Accuracy: ' . number_format((float)$res['accuracy']*100,2) . '%';
+                $log = BASE_PATH . '/storage/logs/train_local_ml.txt';
+                @file_put_contents($log, json_encode($res, JSON_PRETTY_PRINT));
+            }
+        } catch (\Throwable $e) {
+            $_SESSION['flash'] = 'Training error: ' . $e->getMessage();
+        }
+        \App\Helpers::redirect('/settings?tab=filter');
+    }
 
     public function index(): void
     {
