@@ -23,6 +23,12 @@
         <label class="form-label">OpenAI API Key</label>
         <input type="password" name="openai_api_key" class="form-control" placeholder="sk-... (only used if mode=GPT)">
       </div>
+      <div class="col-md-4 align-self-end">
+        <div class="form-check mt-2">
+          <input class="form-check-input" type="checkbox" name="strict_gpt" id="strictGpt" <?php echo !empty($settings['strict_gpt'])?'checked':''; ?>>
+          <label class="form-check-label" for="strictGpt">Strict GPT mode (no fallback; unknown on failure)</label>
+        </div>
+      </div>
       <div class="col-md-3">
         <label class="form-label">Genuine threshold</label>
         <input type="number" class="form-control" name="threshold_genuine" value="<?php echo (int)($settings['filter_threshold_genuine'] ?? 70); ?>" min="0" max="100">

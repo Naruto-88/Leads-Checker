@@ -42,6 +42,8 @@ class EmailsController
             'activeClient' => $clientCode,
             'seenAtPrevEmails' => $seenAtPrevEmails,
         ];
+        $data['filterMode'] = $settings['filter_mode'] ?? 'algorithmic';
+        $data['strictGpt'] = (int)($settings['strict_gpt'] ?? 0);
         $isPartial = isset($_GET['partial']) || (!empty($_SERVER['HTTP_X_REQUESTED_WITH']) && strtolower($_SERVER['HTTP_X_REQUESTED_WITH'])==='xmlhttprequest');
         if ($isPartial) {
             \App\Core\View::partial('emails/_rows', $data);

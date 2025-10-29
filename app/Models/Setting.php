@@ -19,10 +19,10 @@ class Setting
         return $row;
     }
 
-    public static function saveFilter(int $userId, string $mode, ?string $openaiKeyEnc, int $thrGenuine = 70, int $thrSpam = 40, ?string $pos = null, ?string $neg = null): void
+    public static function saveFilter(int $userId, string $mode, ?string $openaiKeyEnc, int $thrGenuine = 70, int $thrSpam = 40, ?string $pos = null, ?string $neg = null, int $strictGpt = 0): void
     {
-        $stmt = DB::pdo()->prepare('UPDATE settings SET filter_mode = ?, openai_api_key_enc = ?, filter_threshold_genuine = ?, filter_threshold_spam = ?, filter_pos_keywords = ?, filter_neg_keywords = ? WHERE user_id = ?');
-        $stmt->execute([$mode, $openaiKeyEnc, $thrGenuine, $thrSpam, $pos, $neg, $userId]);
+        $stmt = DB::pdo()->prepare('UPDATE settings SET filter_mode = ?, openai_api_key_enc = ?, filter_threshold_genuine = ?, filter_threshold_spam = ?, filter_pos_keywords = ?, filter_neg_keywords = ?, strict_gpt = ? WHERE user_id = ?');
+        $stmt->execute([$mode, $openaiKeyEnc, $thrGenuine, $thrSpam, $pos, $neg, $strictGpt, $userId]);
     }
 
     public static function saveGeneral(int $userId, string $timezone, int $pageSize): void

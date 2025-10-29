@@ -11,6 +11,7 @@
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="return" value="/dashboard2">
       <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
+      <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':'Algorithmic'); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
     </form>
     <form id="processAllFormD2" method="post" action="/action/run-filter-all" class="d-inline ms-2 js-loading-form"><!-- Process All -->
       <?php echo Csrf::input(); ?>

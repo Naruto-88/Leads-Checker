@@ -17,6 +17,7 @@
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/emails'); ?>">
     <input type="hidden" name="batch" value="500">
     <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
+    <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':'Algorithmic'); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
   </form>
   </div>
 </div>

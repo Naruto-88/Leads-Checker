@@ -56,6 +56,8 @@ class LeadsController
             \App\Core\View::partial('leads/_rows', $data);
             return;
         }
+        $data['filterMode'] = $settings['filter_mode'] ?? 'algorithmic';
+        $data['strictGpt'] = (int)($settings['strict_gpt'] ?? 0);
         View::render('leads/index', $data);
     }
 

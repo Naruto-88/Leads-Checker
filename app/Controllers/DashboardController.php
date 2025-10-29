@@ -244,6 +244,7 @@ class DashboardController
         $lastProcessAt = (string)$lastProcess->fetchColumn();
 
         $clients = \App\Models\Client::listByUser($user['id']);
+        $settings = \App\Models\Setting::getByUser($user['id']);
         // Genuine counts per client for selected range (for badges)
         $genuineCounts = \App\Models\Lead::genuineCountsByClient($user['id'], $start, $end);
         $genuineTotal = \App\Models\Lead::genuineTotal($user['id'], $start, $end);
@@ -253,6 +254,8 @@ class DashboardController
             'end'=>$end,
             'clients'=>$clients,
             'activeClient'=>$clientCode,
+            'filterMode'=>$settings['filter_mode'] ?? 'algorithmic',
+            'strictGpt'=>(int)($settings['strict_gpt'] ?? 0),
             'genuineCounts'=>$genuineCounts ?? [],
             'genuineTotal'=>$genuineTotal ?? 0,
             'newEmails'=>$newEmails,
@@ -333,6 +336,8 @@ class DashboardController
             if (!class_exists('App\\Services\\LeadScorer')) {
                 require_once BASE_PATH . '/app/Services/LeadScorer.php';
             }
+            $settings = \App\Models\Setting::getByUser($user['id']);
+            $strict = (int)($settings['strict_gpt'] ?? 0) === 1;
             foreach ($list as $em) {
                 if (empty($em['client_id'])) {
                     $assign = \App\Services\ClientAssigner::assign($user['id'], $em);
@@ -341,7 +346,14 @@ class DashboardController
                         $em['client_id'] = (int)$assign['client_id'];
                     }
                 }
-                $res = $client ? $client->classify($em) : \App\Services\LeadScorer::compute($em);
+                if ($client) {
+                    $res = $client->classify($em);
+                    if (!$strict && isset($res['mode']) && $res['mode']==='gpt' && isset($res['reason']) && str_starts_with((string)$res['reason'], 'OpenAI error')) {
+                        $res = \App\Services\LeadScorer::compute($em);
+                    }
+                } else {
+                    $res = \App\Services\LeadScorer::compute($em);
+                }
                 $leadId = Lead::upsertFromEmail($em, $res);
                 Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
                 $processed++;

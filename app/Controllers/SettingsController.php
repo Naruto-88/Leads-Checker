@@ -36,12 +36,13 @@ class SettingsController
         $openaiEnc = $apiKey ? \App\Helpers::encryptSecret($apiKey, DB::env('APP_KEY','')) : null;
         $thrG = max(0, min(100, (int)($_POST['threshold_genuine'] ?? 70)));
         $thrS = max(0, min(100, (int)($_POST['threshold_spam'] ?? 40)));
+        $strict = isset($_POST['strict_gpt']) ? 1 : 0;
         // store as comma-separated; allow multi-line too
         $pos = trim((string)($_POST['pos_keywords'] ?? ''));
         $neg = trim((string)($_POST['neg_keywords'] ?? ''));
         $pos = $pos !== '' ? preg_replace('/[\r\n]+/', ',', $pos) : null;
         $neg = $neg !== '' ? preg_replace('/[\r\n]+/', ',', $neg) : null;
-        Setting::saveFilter(Auth::user()['id'], $mode, $openaiEnc, $thrG, $thrS, $pos, $neg);
+        Setting::saveFilter(Auth::user()['id'], $mode, $openaiEnc, $thrG, $thrS, $pos, $neg, $strict);
         Helpers::redirect('/settings');
     }
 

@@ -114,6 +114,9 @@ class Installer
         if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_pos_keywords TEXT NULL AFTER filter_threshold_spam"); }
         $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_neg_keywords'")->fetch();
         if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN filter_neg_keywords TEXT NULL AFTER filter_pos_keywords"); }
+        // Strict GPT flag
+        $cols = $pdo->query("SHOW COLUMNS FROM settings LIKE 'strict_gpt'")->fetch();
+        if (!$cols) { $pdo->exec("ALTER TABLE settings ADD COLUMN strict_gpt TINYINT(1) NOT NULL DEFAULT 0 AFTER filter_neg_keywords"); }
 
         // Per-client filtering fields
         $cols = $pdo->query("SHOW COLUMNS FROM clients LIKE 'filter_threshold_genuine'")->fetch();
