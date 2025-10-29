@@ -549,4 +549,62 @@ class DashboardController
         $json = @file_get_contents($file);
         echo $json !== false ? $json : json_encode(['processed'=>0,'total'=>0,'done'=>false]);
     }
+
+    public function reprocessGptExisting(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        @set_time_limit(300);
+        $user = Auth::user();
+        $pdo = DB::pdo();
+        $settings = \App\Models\Setting::getByUser($user['id']);
+        $mode = $settings['filter_mode'] ?? 'algorithmic';
+        $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
+        if ($mode !== 'gpt' || !$openaiKey) {
+            $_SESSION['flash'] = 'GPT mode is not enabled or API key missing.';
+            Helpers::redirect('/leads');
+        }
+        $client = new OpenAIClient($openaiKey);
+        $strict = (int)($settings['strict_gpt'] ?? 0) === 1;
+
+        $batch = max(50, (int)($_POST['batch'] ?? 200));
+        $cap = max($batch, (int)($_POST['cap'] ?? 1000));
+        $processed = 0; $offset = 0;
+
+        while ($processed < $cap) {
+            // Pick leads whose current mode is algorithmic, not deleted, not previously GPT, and no manual check present
+            $sql = "SELECT l.id AS lead_id, l.*, e.*
+                    FROM leads l
+                    JOIN emails e ON e.id = l.email_id
+                    WHERE l.user_id = :uid AND l.deleted_at IS NULL
+                      AND (l.mode IS NULL OR l.mode = 'algorithmic')
+                      AND NOT EXISTS (
+                          SELECT 1 FROM lead_checks lc WHERE lc.lead_id = l.id AND lc.mode = 'manual'
+                      )
+                    ORDER BY e.received_at DESC
+                    LIMIT :lim OFFSET :off";
+            $stmt = $pdo->prepare($sql);
+            $stmt->bindValue(':uid', (int)$user['id'], \PDO::PARAM_INT);
+            $stmt->bindValue(':lim', (int)$batch, \PDO::PARAM_INT);
+            $stmt->bindValue(':off', (int)$offset, \PDO::PARAM_INT);
+            $stmt->execute();
+            $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+            if (!$rows) break;
+
+            foreach ($rows as $em) {
+                $res = $client->classify($em);
+                if (!$strict && isset($res['mode']) && $res['mode']==='gpt' && isset($res['reason']) && str_starts_with((string)$res['reason'], 'OpenAI error')) {
+                    // fallback to algorithmic only if strict is off
+                    $res = \App\Services\LeadScorer::compute($em);
+                }
+                $leadId = Lead::upsertFromEmail($em, $res);
+                Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+                $processed++;
+                if ($processed >= $cap) break;
+            }
+            $offset += $batch;
+        }
+        $_SESSION['flash'] = 'Reprocessed ' . $processed . ' existing leads with GPT.';
+        Helpers::redirect('/leads');
+    }
 }

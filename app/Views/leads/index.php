@@ -17,6 +17,15 @@
     </select>
     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply search and sort">Apply</button>
   </form>
+  <?php if (!empty($filterMode) && $filterMode==='gpt'): ?>
+  <form method="post" action="/action/reprocess-gpt" class="js-loading-form ms-1">
+    <?php echo App\Security\Csrf::input(); ?>
+    <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
+    <input type="hidden" name="batch" value="200">
+    <input type="hidden" name="cap" value="1000">
+    <button class="btn btn-sm btn-outline-dark js-loading-btn" data-loading-text="Reprocessing..." data-bs-toggle="tooltip" title="Re-run GPT on leads previously classified by the algorithm (manual overrides are preserved)">Reprocess with GPT</button>
+  </form>
+  <?php endif; ?>
   <form method="post" action="/action/fetch-now" class="js-loading-form">
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">

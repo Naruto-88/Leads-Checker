@@ -104,6 +104,7 @@ $router->post('/action/fetch-now', [App\Controllers\DashboardController::class, 
 $router->post('/action/fetch-now-async', [App\Controllers\DashboardController::class, 'fetchNowAsync']);
 $router->get('/action/fetch-progress-now', [App\Controllers\DashboardController::class, 'fetchProgressNow']);
 $router->post('/action/run-filter', [App\Controllers\DashboardController::class, 'runFilter']);
+$router->post('/action/reprocess-gpt', [App\Controllers\DashboardController::class, 'reprocessGptExisting']);
 $router->post('/action/backfill-assign', [App\Controllers\DashboardController::class, 'backfillAssign']);
 
 $router->post('/settings/update-client', [App\Controllers\SettingsController::class, 'updateClient']);
