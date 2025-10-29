@@ -332,7 +332,9 @@ class DashboardController
         $mode = $settings['filter_mode'] ?? 'algorithmic';
         $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
         $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
-        $processEmails = function(array $list) use (&$processed, $client, $user) {
+        $useLocal = ($mode === 'local_ml');
+        $useLocal = ($mode === 'local_ml');
+        $processEmails = function(array $list) use (&$processed, $client, $user, $useLocal) {
             if (!class_exists('App\\Services\\LeadScorer')) {
                 require_once BASE_PATH . '/app/Services/LeadScorer.php';
             }
@@ -346,7 +348,10 @@ class DashboardController
                         $em['client_id'] = (int)$assign['client_id'];
                     }
                 }
-                if ($client) {
+                if ($useLocal) {
+                    $res = \App\Services\LocalMLClassifier::classify($em);
+                    if ($res === null) { $res = \App\Services\LeadScorer::compute($em); }
+                } elseif ($client) {
                     $res = $client->classify($em);
                     if (!$strict && isset($res['mode']) && $res['mode']==='gpt' && isset($res['reason']) && str_starts_with((string)$res['reason'], 'OpenAI error')) {
                         $res = \App\Services\LeadScorer::compute($em);
@@ -512,7 +517,12 @@ class DashboardController
                         $em['client_id'] = (int)$assign['client_id'];
                     }
                 }
-                $res = $client ? $client->classify($em) : \App\Services\LeadScorer::compute($em);
+                if ($useLocal) {
+                    $res = \App\Services\LocalMLClassifier::classify($em);
+                    if ($res === null) { $res = \App\Services\LeadScorer::compute($em); }
+                } else {
+                    $res = $client ? $client->classify($em) : \App\Services\LeadScorer::compute($em);
+                }
                 $leadId = Lead::upsertFromEmail($em, $res);
                 Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
                 $processed++;

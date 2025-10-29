@@ -17,6 +17,7 @@
         <select class="form-select" name="filter_mode">
           <option value="algorithmic" <?php echo ($settings['filter_mode']==='algorithmic'?'selected':''); ?>>Algorithmic</option>
           <option value="gpt" <?php echo ($settings['filter_mode']==='gpt'?'selected':''); ?>>GPT (OpenAI)</option>
+          <option value="local_ml" <?php echo ($settings['filter_mode']==='local_ml'?'selected':''); ?>>Local ML (trained)</option>
         </select>
       </div>
       <div class="col-md-8">
