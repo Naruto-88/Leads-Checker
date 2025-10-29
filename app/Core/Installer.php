@@ -150,10 +150,3 @@ class Installer
         } catch (\Throwable $e) {}
     }
 }
-        // Allow local_ml in settings.filter_mode
-        try {
-            $col = $pdo->query("SHOW COLUMNS FROM settings LIKE 'filter_mode'")->fetch(\PDO::FETCH_ASSOC);
-            if ($col && isset($col['Type']) && strpos((string)$col['Type'], "local_ml") === false) {
-                $pdo->exec("ALTER TABLE settings MODIFY filter_mode ENUM('algorithmic','gpt','local_ml') NOT NULL DEFAULT 'algorithmic'");
-            }
-        } catch (\Throwable $e) {}
