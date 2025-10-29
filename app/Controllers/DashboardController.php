@@ -607,4 +607,41 @@ class DashboardController
         $_SESSION['flash'] = 'Reprocessed ' . $processed . ' existing leads with GPT.';
         Helpers::redirect('/leads');
     }
+
+    public function reprocessGptAsync(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo json_encode(['ok'=>false,'error'=>'Bad CSRF']); return; }
+        header('Content-Type: application/json');
+        $user = Auth::user();
+        $progressFile = BASE_PATH . '/storage/logs/repgpt_user_' . (int)$user['id'] . '.json';
+        @file_put_contents($progressFile, json_encode(['started'=>date('c'),'done'=>false,'total'=>0,'processed'=>0]));
+
+        $client = trim($_POST['client'] ?? '');
+        $start = trim($_POST['start'] ?? '');
+        $end = trim($_POST['end'] ?? '');
+        $batch = (int)($_POST['batch'] ?? 200);
+        $cap = (int)($_POST['cap'] ?? 1000);
+        $args = [(int)$user['id']];
+        if ($client !== '') { $args[] = '--client=' . $client; }
+        if ($start !== '') { $args[] = '--start=' . $start; }
+        if ($end !== '') { $args[] = '--end=' . $end; }
+        if ($batch > 0) { $args[] = '--batch=' . $batch; }
+        if ($cap > 0) { $args[] = '--cap=' . $cap; }
+        $cmd = 'php ' . escapeshellarg(BASE_PATH . '/tools/reprocess_gpt.php') . ' ' . implode(' ', array_map('escapeshellarg', $args)) . ' > /dev/null 2>&1 &';
+        @chdir(BASE_PATH);
+        if (stripos(PHP_OS, 'WIN') === 0) { pclose(popen('start /B ' . $cmd, 'r')); } else { @exec($cmd); }
+        echo json_encode(['ok'=>true]);
+    }
+
+    public function reprocessGptProgress(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json');
+        $user = Auth::user();
+        $file = BASE_PATH . '/storage/logs/repgpt_user_' . (int)$user['id'] . '.json';
+        if (!file_exists($file)) { echo json_encode(['processed'=>0,'total'=>0,'done'=>false]); return; }
+        $json = @file_get_contents($file);
+        echo $json !== false ? $json : json_encode(['processed'=>0,'total'=>0,'done'=>false]);
+    }
 }

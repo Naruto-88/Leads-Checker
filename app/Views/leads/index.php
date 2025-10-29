@@ -18,9 +18,12 @@
     <button class="btn btn-sm btn-outline-secondary" data-bs-toggle="tooltip" title="Apply search and sort">Apply</button>
   </form>
   <?php if (!empty($filterMode) && $filterMode==='gpt'): ?>
-  <form method="post" action="/action/reprocess-gpt" class="js-loading-form ms-1">
+  <form id="repgptForm" method="post" action="/action/reprocess-gpt-async" class="js-loading-form ms-1">
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
+    <input type="hidden" name="client" value="<?php echo Helpers::e($activeClient ?? ''); ?>">
+    <input type="hidden" name="start" value="<?php echo Helpers::e($start ?? ''); ?>">
+    <input type="hidden" name="end" value="<?php echo Helpers::e($end ?? ''); ?>">
     <input type="hidden" name="batch" value="200">
     <input type="hidden" name="cap" value="1000">
     <button class="btn btn-sm btn-outline-dark js-loading-btn" data-loading-text="Reprocessing..." data-bs-toggle="tooltip" title="Re-run GPT on leads previously classified by the algorithm (manual overrides are preserved)">Reprocess with GPT</button>
@@ -318,6 +321,34 @@ document.addEventListener('DOMContentLoaded', function () {
     var tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.forEach(function (el) { new bootstrap.Tooltip(el); });
   } catch (e) {}
+
+  // Async Reprocess with GPT progress
+  const repForm = document.getElementById('repgptForm');
+  if (repForm) {
+    repForm.addEventListener('submit', function (e) {
+      e.preventDefault();
+      const btn = repForm.querySelector('.js-loading-btn');
+      if (btn) { btn.disabled = true; btn.innerHTML = '<span class="spinner-border spinner-border-sm me-1" role="status" aria-hidden="true"></span>Starting...'; }
+      const fd = new FormData(repForm);
+      fetch(repForm.getAttribute('action') || '/action/reprocess-gpt-async', { method:'POST', body: fd, headers:{ 'X-Requested-With':'XMLHttpRequest' } })
+        .then(r=>r.json()).then(()=>{
+          let info = document.getElementById('progressInfoRepgpt');
+          if (!info) { info = document.createElement('div'); info.id='progressInfoRepgpt'; info.className='small text-muted ms-2 d-inline-block'; repForm.parentElement.appendChild(info); }
+          const tick = async ()=>{
+            try {
+              const res = await fetch('/action/reprocess-gpt-progress', { headers:{ 'Accept':'application/json' } });
+              if (!res.ok) return;
+              const p = await res.json();
+              if (p && typeof p.processed !== 'undefined') {
+                info.textContent = p.done ? `Done. Reprocessed ${p.processed} of ${p.total}.` : `Reprocessing ${p.processed} of ${p.total}...`;
+                if (!p.done) { setTimeout(tick, 1000); } else if (btn) { btn.disabled=false; btn.textContent='Reprocess with GPT'; }
+              }
+            } catch(e){}
+          };
+          setTimeout(tick, 800);
+        }).catch(()=>{ if (btn) { btn.disabled=false; btn.textContent='Reprocess with GPT'; } });
+    });
+  }
 });
 </script>
 

@@ -39,6 +39,8 @@ class LeadsController
         $data = [
             'leads' => $leads,
             'range' => $quick,
+            'start' => $start,
+            'end' => $end,
             'q' => $search,
             'sort' => $sort,
             'page' => $page,
