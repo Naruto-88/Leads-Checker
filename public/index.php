@@ -74,6 +74,7 @@ $router->post('/emails/process-selected', [App\Controllers\EmailsController::cla
 $router->get('/settings', [App\Controllers\SettingsController::class, 'index']);
 $router->post('/settings/save-filter', [App\Controllers\SettingsController::class, 'saveFilter']);
 $router->post('/settings/train-local-ml', [App\Controllers\SettingsController::class, 'trainLocalMl']);
+$router->post('/settings/compare-local-gpt', [App\Controllers\SettingsController::class, 'compareLocalVsGpt']);
 $router->post('/settings/save-imap', [App\Controllers\SettingsController::class, 'saveImap']);
 $router->post('/settings/delete-imap', [App\Controllers\SettingsController::class, 'deleteImap']);
 $router->post('/settings/save-general', [App\Controllers\SettingsController::class, 'saveGeneral']);
