@@ -32,7 +32,56 @@ class SettingsController
         \App\Helpers::redirect('/settings?tab=filter');
     }
 
-    public function index(): void
+    
+    public function compareLocalVsGpt(): void
+    {
+        Auth::requireLogin();
+        if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $userId = Auth::user()['id'];
+        $clientCode = trim($_POST['client'] ?? '');
+        $range = $_POST['range'] ?? 'last_30';
+        [$start, $end] = \App\Helpers::dateRangeQuick($range === 'all' ? 'last_365' : $range);
+        if ($range === 'all') { $start = '1970-01-01 00:00:00'; $end = date('Y-m-d 23:59:59'); }
+
+        $pdo = \App\Core\DB::pdo();
+        $clientId = null;
+        if ($clientCode !== '') {
+            $c = \App\Models\Client::findByShortcode($userId, $clientCode);
+            if ($c) { $clientId = (int)$c['id']; }
+        }
+
+        $sql = "SELECT l.id AS lead_id, l.client_id, COALESCE(c.shortcode,'') AS shortcode,
+                       e.subject, e.body_plain, e.body_html,
+                       (SELECT lc.status FROM lead_checks lc WHERE lc.lead_id=l.id AND lc.mode='gpt' ORDER BY lc.created_at DESC LIMIT 1) AS gpt_label
+                FROM leads l
+                JOIN emails e ON e.id = l.email_id
+                LEFT JOIN clients c ON c.id = l.client_id
+                WHERE l.user_id = :uid AND l.deleted_at IS NULL AND e.received_at BETWEEN :start AND :end";
+        $params = [':uid'=>$userId, ':start'=>$start, ':end'=>$end];
+        if ($clientId) { $sql .= ' AND l.client_id = :cid'; $params[':cid'] = $clientId; }
+        $sql .= ' ORDER BY e.received_at DESC LIMIT 500';
+        $st = $pdo->prepare($sql); $st->execute($params);
+        $rows = $st->fetchAll(\PDO::FETCH_ASSOC);
+
+        $tested = 0; $agree = 0; $by = [];
+        foreach ($rows as $r) {
+            $gpt = $r['gpt_label'] ?? null; if (!$gpt) continue;
+            $res = \App\Services\LocalMLClassifier::classify($r);
+            if ($res === null) { continue; }
+            $lm = $res['status'] ?? 'unknown';
+            $tested++;
+            $key = (string)($r['shortcode'] ?? ''); if ($key === '') { $key = 'NONE'; }
+            if (!isset($by[$key])) { $by[$key] = ['agree'=>0,'tested'=>0]; }
+            $by[$key]['tested']++;
+            if ($lm === $gpt) { $agree++; $by[$key]['agree']++; }
+        }
+        $acc = $tested>0 ? ($agree/$tested) : 0.0;
+        $report = ['tested'=>$tested,'agree'=>$agree,'accuracy'=>$acc,'by_client'=>$by,'range'=>$range,'client'=>$clientCode,'start'=>$start,'end'=>$end];
+        $file = BASE_PATH . '/storage/logs/compare_local_vs_gpt.json';
+        @file_put_contents($file, json_encode($report, JSON_PRETTY_PRINT));
+        $_SESSION['flash'] = 'Compare Local vs GPT: ' . $agree . '/' . $tested . ' agree (Accuracy ' . number_format($acc*100,2) . '%).';
+        Helpers::redirect('/settings?tab=filter');
+    }public function index(): void
     {
         Auth::requireLogin();
         $user = Auth::user();
@@ -225,3 +274,4 @@ class SettingsController
         Helpers::redirect('/settings?tab=clients');
     }
 }
+
