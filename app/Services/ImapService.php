@@ -51,14 +51,14 @@ class ImapService
         if (!$inbox) {
             throw new \RuntimeException('IMAP connect failed: ' . imap_last_error());
         }
+        // Get candidate UIDs using a standard criterion, then filter in PHP to avoid servers that reject UID in search
+        $sinceDate = date('d-M-Y', strtotime('-'.$daysBack.' days'));
+        $uidsAll = imap_search($inbox, 'ALL SINCE "' . $sinceDate . '"', SE_UID) ?: [];
         $uids = [];
-        if ($lastUid > 0) {
-            // Delta fetch: only messages with UID greater than last seen
-            $uids = imap_search($inbox, 'UID ' . ($lastUid + 1) . ':*', SE_UID) ?: [];
+        if ($lastUid > 0 && $uidsAll) {
+            foreach ($uidsAll as $u) { if ($u > $lastUid) { $uids[] = $u; } }
         } else {
-            // First-time or no marker: fall back to date-based query
-            $sinceDate = date('d-M-Y', strtotime('-'.$daysBack.' days'));
-            $uids = imap_search($inbox, 'ALL SINCE "' . $sinceDate . '"', SE_UID) ?: [];
+            $uids = $uidsAll;
         }
         sort($uids, SORT_NUMERIC);
         if ($limit > 0 && count($uids) > $limit) {
