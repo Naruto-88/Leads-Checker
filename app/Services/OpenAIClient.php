@@ -71,7 +71,8 @@ class OpenAIClient
                 'Authorization: Bearer ' . $this->apiKey,
             ],
             CURLOPT_POSTFIELDS => json_encode($payload),
-            CURLOPT_TIMEOUT => 30,
+            CURLOPT_TIMEOUT => 15,
+            CURLOPT_CONNECTTIMEOUT => 5,
         ]);
         $resp = curl_exec($ch);
         $err = curl_error($ch);
@@ -99,4 +100,3 @@ class OpenAIClient
         ];
     }
 }
-

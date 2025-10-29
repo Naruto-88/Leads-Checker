@@ -644,7 +644,17 @@ class DashboardController
         $q->execute();
         $total = (int)$q->fetchColumn();
         if ($total <= 0) { echo json_encode(['ok'=>false,'error'=>'No eligible algorithmic leads found for selected filters.']); return; }
-        @file_put_contents($progressFile, json_encode(['started'=>date('c'),'done'=>false,'total'=>$total,'processed'=>0]));
+        @file_put_contents($progressFile, json_encode([
+            'started'=>date('c'),
+            'done'=>false,
+            'total'=>$total,
+            'processed'=>0,
+            'client'=>$client,
+            'start'=>$start,
+            'end'=>$end,
+            'batch'=>$batch,
+            'cap'=>$cap
+        ]));
         $args = [(int)$user['id']];
         if ($client !== '') { $args[] = '--client=' . $client; }
         if ($start !== '') { $args[] = '--start=' . $start; }
@@ -664,7 +674,57 @@ class DashboardController
         $user = Auth::user();
         $file = BASE_PATH . '/storage/logs/repgpt_user_' . (int)$user['id'] . '.json';
         if (!file_exists($file)) { echo json_encode(['processed'=>0,'total'=>0,'done'=>false]); return; }
-        $json = @file_get_contents($file);
-        echo $json !== false ? $json : json_encode(['processed'=>0,'total'=>0,'done'=>false]);
+        $stateJson = @file_get_contents($file);
+        if ($stateJson === false) { echo json_encode(['processed'=>0,'total'=>0,'done'=>false]); return; }
+        $state = json_decode($stateJson, true);
+        if (!is_array($state)) { echo json_encode(['processed'=>0,'total'=>0,'done'=>false]); return; }
+
+        // If already finished, just return current state
+        if (!empty($state['done'])) { echo json_encode($state); return; }
+
+        $settings = \App\Models\Setting::getByUser($user['id']);
+        $mode = $settings['filter_mode'] ?? 'algorithmic';
+        $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
+        if ($mode !== 'gpt' || !$openaiKey) { $state['done']=true; $state['error']='GPT disabled or key missing.'; @file_put_contents($file, json_encode($state)); echo json_encode($state); return; }
+        $strict = (int)($settings['strict_gpt'] ?? 0) === 1;
+        $client = new OpenAIClient($openaiKey);
+
+        $pdo = DB::pdo();
+        $clientId = null;
+        if (!empty($state['client'])) { $c = \App\Models\Client::findByShortcode($user['id'], $state['client']); if ($c) { $clientId = (int)$c['id']; } }
+        $where = 'l.user_id = :uid AND l.deleted_at IS NULL AND (l.mode IS NULL OR l.mode = "algorithmic") AND NOT EXISTS (SELECT 1 FROM lead_checks lc WHERE lc.lead_id=l.id AND lc.mode="manual")';
+        $params = [':uid'=>(int)$user['id']];
+        if ($clientId) { $where .= ' AND l.client_id = :cid'; $params[':cid'] = $clientId; }
+        if (!empty($state['start']) && !empty($state['end'])) { $where .= ' AND e.received_at BETWEEN :start AND :end'; $params[':start']=$state['start']; $params[':end']=$state['end']; }
+
+        $processed = (int)($state['processed'] ?? 0);
+        $total = (int)($state['total'] ?? 0);
+        $cap = max(1, (int)($state['cap'] ?? 1000));
+        $batch = max(1, (int)($state['batch'] ?? 200));
+        $remaining = max(0, min($total, $cap) - $processed);
+        if ($remaining <= 0) { $state['done']=true; @file_put_contents($file, json_encode($state)); echo json_encode($state); return; }
+        $take = min($batch, $remaining);
+
+        $sql = "SELECT l.id AS lead_id, l.*, e.* FROM leads l JOIN emails e ON e.id=l.email_id WHERE $where ORDER BY e.received_at DESC LIMIT :lim OFFSET :off";
+        $stmt = $pdo->prepare($sql);
+        foreach ($params as $k=>$v) { $stmt->bindValue($k, $v, is_int($v)?\PDO::PARAM_INT:\PDO::PARAM_STR); }
+        $stmt->bindValue(':lim', (int)$take, \PDO::PARAM_INT);
+        $stmt->bindValue(':off', (int)$processed, \PDO::PARAM_INT);
+        $stmt->execute();
+        $rows = $stmt->fetchAll(\PDO::FETCH_ASSOC);
+
+        foreach ($rows as $em) {
+            $res = $client->classify($em);
+            if (!$strict && isset($res['mode']) && $res['mode']==='gpt' && isset($res['reason']) && str_starts_with((string)$res['reason'], 'OpenAI error')) {
+                $res = \App\Services\LeadScorer::compute($em);
+            }
+            $leadId = Lead::upsertFromEmail($em, $res);
+            Lead::addCheck($leadId, $user['id'], $res['mode'], (int)$res['score'], (string)$res['reason']);
+            $processed++;
+        }
+        $state['processed'] = $processed;
+        if ($processed >= min($total, $cap)) { $state['done'] = true; }
+        @file_put_contents($file, json_encode($state));
+        echo json_encode($state);
     }
 }

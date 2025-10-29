@@ -75,9 +75,8 @@ while ($processed < $cap) {
         $leadId = \App\Models\Lead::upsertFromEmail($em, $res);
         \App\Models\Lead::addCheck($leadId, $userId, $res['mode'], (int)$res['score'], (string)$res['reason']);
         $processed++;
-        if ($processed % 20 === 0) {
-            @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>false]));
-        }
+        // Update progress frequently so UI doesn't look stuck on small sets
+        @file_put_contents($progressFile, json_encode(['processed'=>$processed,'total'=>$total,'done'=>false,'updated_at'=>date('c')]));
         if ($processed >= $cap) break;
     }
     $offset += $batch;
