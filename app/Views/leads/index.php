@@ -28,9 +28,7 @@
     <?php echo App\Security\Csrf::input(); ?>
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
     <input type="hidden" name="batch" value="500">
-    <input type="hidden" name="all" value="1">
-    <input type="hidden" name="cap" value="5000">
-    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
+    <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify only new/unknown emails">Run Filter</button>
   </form>
   <form method="post" action="/action/backfill-assign" class="js-loading-form ms-1">
     <?php echo App\Security\Csrf::input(); ?>
