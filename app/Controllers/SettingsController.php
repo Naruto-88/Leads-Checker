@@ -193,6 +193,7 @@ class SettingsController
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
         $emails = isset($_POST['contact_emails']) ? trim((string)$_POST['contact_emails']) : null;
         $senderEmail = isset($_POST['sender_email']) ? trim((string)$_POST['sender_email']) : null;
+        $sheetMapping = isset($_POST['sheet_mapping']) ? trim((string)$_POST['sheet_mapping']) : null;
         if (!$name || !$short) { $_SESSION['flash'] = 'Client name and shortcode required.'; Helpers::redirect('/settings'); }
         \App\Models\Client::create(Auth::user()['id'], $name, $website ?: null, $short);
         // Update contact emails if provided
@@ -202,6 +203,7 @@ class SettingsController
             if ($id) {
                 if ($emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
                 if ($senderEmail !== '') { \App\Models\Client::updateSenderEmail(Auth::user()['id'], $id, $senderEmail); }
+                if ($sheetMapping !== '') { \App\Models\Client::updateSheetMapping(Auth::user()['id'], $id, $sheetMapping); }
             }
         } catch (\Throwable $e) {}
         // Stay on Clients tab after adding
@@ -227,6 +229,7 @@ class SettingsController
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
         $emails = trim((string)($_POST['contact_emails'] ?? ''));
         $senderEmail = trim((string)($_POST['sender_email'] ?? ''));
+        $sheetMapping = trim((string)($_POST['sheet_mapping'] ?? ''));
         if (!$id || !$name || !$short) {
             $_SESSION['flash'] = 'Client id, name and shortcode are required.';
             Helpers::redirect('/settings?tab=clients');
@@ -234,6 +237,7 @@ class SettingsController
         \App\Models\Client::update(Auth::user()['id'], $id, $name, $website ?: null, $short);
         \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, ($emails === '' ? null : $emails));
         \App\Models\Client::updateSenderEmail(Auth::user()['id'], $id, ($senderEmail === '' ? null : $senderEmail));
+        \App\Models\Client::updateSheetMapping(Auth::user()['id'], $id, ($sheetMapping === '' ? null : $sheetMapping));
         Helpers::redirect('/settings?tab=clients');
     }
 

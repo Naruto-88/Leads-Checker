@@ -58,6 +58,9 @@ $router = new App\Core\Router($ENV);
 // Register routes
 $router->get('/', [App\Controllers\DashboardController::class, 'dashboard2']);
 $router->get('/leads', [App\Controllers\LeadsController::class, 'index']);
+$router->get('/leads/export', [App\Controllers\LeadsController::class, 'export']);
+$router->post('/leads/sync-sheets', [App\Controllers\LeadsController::class, 'syncSheets']);
+$router->get('/action/sync-sheets-progress', [App\Controllers\LeadsController::class, 'syncSheetsProgress']);
 $router->post('/leads/delete', [App\Controllers\LeadsController::class, 'delete']);
 $router->get('/leads/export', [App\Controllers\LeadsController::class, 'export']);
 $router->post('/leads/sync-sheets', [App\Controllers\LeadsController::class, 'syncSheets']);

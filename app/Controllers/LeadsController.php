@@ -131,24 +131,43 @@ class LeadsController
         header('Content-Disposition: attachment; filename="' . $fname . '"');
         $out = fopen('php://output', 'w');
 
-        // If a specific client is selected, try structured export via LeadParser
+        // If a specific client is selected, try structured export via SheetMapping (no-code), else LeadParser
         $didStructured = false;
         if ($client) {
-            $headers = \App\Services\LeadParser::headersFor($client['shortcode'] ?? '', $client['name'] ?? '');
-            if ($headers && $headers[0] !== 'From') {
-                fputcsv($out, $headers);
-                foreach ($rows as $r) {
-                    $parsed = \App\Services\LeadParser::parseFor($client['shortcode'] ?? '', $client['name'] ?? '', $r);
-                    if ($parsed !== null) {
-                        $rowOut = [];
-                        foreach ($headers as $h) { $rowOut[] = $parsed[$h] ?? ''; }
-                        fputcsv($out, $rowOut);
-                    } else {
-                        // Fallback to basic mapping
-                        fputcsv($out, array_fill(0, count($headers), ''));
+            $mapping = (string)($client['sheet_mapping'] ?? '');
+            if ($mapping !== '') {
+                $applied = false;
+                try {
+                    $first = $rows[0] ?? null;
+                    if ($first) {
+                        $res = \App\Services\SheetMapping::apply($mapping, $first);
+                        if ($res && !empty($res['headers'])) {
+                            fputcsv($out, $res['headers']);
+                            foreach ($rows as $r) {
+                                $zr = \App\Services\SheetMapping::apply($mapping, $r);
+                                fputcsv($out, $zr ? $zr['values'] : array_fill(0, count($res['headers']), ''));
+                            }
+                            $didStructured = true; $applied = true;
+                        }
                     }
+                } catch (\Throwable $e) {}
+            }
+            if (!$didStructured) {
+                $headers = \App\Services\LeadParser::headersFor($client['shortcode'] ?? '', $client['name'] ?? '');
+                if ($headers && $headers[0] !== 'From') {
+                    fputcsv($out, $headers);
+                    foreach ($rows as $r) {
+                        $parsed = \App\Services\LeadParser::parseFor($client['shortcode'] ?? '', $client['name'] ?? '', $r);
+                        if ($parsed !== null) {
+                            $rowOut = [];
+                            foreach ($headers as $h) { $rowOut[] = $parsed[$h] ?? ''; }
+                            fputcsv($out, $rowOut);
+                        } else {
+                            fputcsv($out, array_fill(0, count($headers), ''));
+                        }
+                    }
+                    $didStructured = true;
                 }
-                $didStructured = true;
             }
         }
 
@@ -204,11 +223,36 @@ class LeadsController
         $rows = Lead::listByUserForExport($user['id'], [
             'start'=>$start,'end'=>$end,'status'=>$status,'client_id'=>$client['id'] ?? null
         ]);
-        $count = 0;
+        // Initialize progress file
+        $progFile = BASE_PATH . '/storage/logs/sync_sheets_' . (int)$user['id'] . '.json';
+        $total = count($rows);
+        @file_put_contents($progFile, json_encode(['total'=>$total,'processed'=>0,'done'=>false], JSON_UNESCAPED_SLASHES));
+        $count = 0; $errors = 0;
         foreach ($rows as $r) {
-            try { \App\Services\SheetsWebhook::sendLeadById((int)$r['id']); $count++; } catch (\Throwable $e) {}
+            try { \App\Services\SheetsWebhook::sendLeadById((int)$r['id']); $count++; }
+            catch (\Throwable $e) { $errors++; }
+            if ($total > 0 && ($count % 1) === 0) { // update every row
+                @file_put_contents($progFile, json_encode(['total'=>$total,'processed'=>$count,'done'=>false,'errors'=>$errors], JSON_UNESCAPED_SLASHES));
+            }
         }
-        $_SESSION['flash'] = 'Sent ' . $count . ' leads to Google Sheets webhook' . ($clientCode? (' for ' . $clientCode) : '') . '.';
-        \App\Helpers::redirect($_POST['return'] ?? '/leads');
+        @file_put_contents($progFile, json_encode(['total'=>$total,'processed'=>$count,'done'=>true,'errors'=>$errors], JSON_UNESCAPED_SLASHES));
+        // For non-AJAX use, still redirect with flash
+        if (empty($_SERVER['HTTP_X_REQUESTED_WITH'])) {
+            $_SESSION['flash'] = 'Sent ' . $count . ' leads to Google Sheets webhook' . ($clientCode? (' for ' . $clientCode) : '') . '.';
+            \App\Helpers::redirect($_POST['return'] ?? '/leads');
+            return;
+        }
+        header('Content-Type: application/json');
+        echo json_encode(['ok'=>true,'sent'=>$count,'total'=>$total,'errors'=>$errors]);
+    }
+
+    public function syncSheetsProgress(): void
+    {
+        Auth::requireLogin();
+        header('Content-Type: application/json');
+        $file = BASE_PATH . '/storage/logs/sync_sheets_' . (int)Auth::user()['id'] . '.json';
+        if (!file_exists($file)) { echo json_encode(['total'=>0,'processed'=>0,'done'=>true]); return; }
+        $j = @file_get_contents($file);
+        echo $j ?: json_encode(['total'=>0,'processed'=>0,'done'=>true]);
     }
 }

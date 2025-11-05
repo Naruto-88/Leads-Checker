@@ -147,7 +147,7 @@
         <h6>Existing Clients</h6>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Shortcode</th><th>Name</th><th>Website</th><th>Email Addresses</th><th>Sender Email</th><th></th></tr></thead>
+            <thead><tr><th>Shortcode</th><th>Name</th><th>Website</th><th>Email Addresses</th><th>Sender Email</th><th>Mapping</th><th></th></tr></thead>
             <tbody>
               <?php foreach (($clients ?? []) as $c): ?>
               <tr>
@@ -156,8 +156,9 @@
                 <td><?php echo Helpers::e($c['website']); ?></td>
                 <td class="small text-muted" style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>"><?php echo Helpers::e($c['contact_emails'] ?? ''); ?></td>
                 <td class="small"><?php echo Helpers::e($c['sender_email'] ?? ''); ?></td>
+                <td class="small"><?php echo !empty($c['sheet_mapping']) ? '<span class="badge bg-success">Set</span>' : '<span class="badge bg-secondary">None</span>'; ?></td>
                 <td>
-                  <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#editClientModal" data-id="<?php echo (int)$c['id']; ?>" data-name="<?php echo Helpers::e($c['name']); ?>" data-website="<?php echo Helpers::e($c['website']); ?>" data-shortcode="<?php echo Helpers::e($c['shortcode']); ?>" data-emails="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>" data-sender="<?php echo Helpers::e($c['sender_email'] ?? ''); ?>">Edit</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#editClientModal" data-id="<?php echo (int)$c['id']; ?>" data-name="<?php echo Helpers::e($c['name']); ?>" data-website="<?php echo Helpers::e($c['website']); ?>" data-shortcode="<?php echo Helpers::e($c['shortcode']); ?>" data-emails="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>" data-sender="<?php echo Helpers::e($c['sender_email'] ?? ''); ?>" data-mapping="<?php echo Helpers::e($c['sheet_mapping'] ?? ''); ?>">Edit</button>
                   <form method="post" action="/settings/delete-client" onsubmit="return confirm('Delete client?');" class="d-inline">
                     <?php echo Csrf::input(); ?>
                     <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
@@ -179,6 +180,11 @@
           <div class="col-6"><label class="form-label">Shortcode</label><input name="shortcode" class="form-control" placeholder="ABC" required></div>
           <div class="col-12"><label class="form-label">Client Email Addresses <small class="text-muted">(comma or new line)</small></label><textarea name="contact_emails" class="form-control" rows="2" placeholder="sales@example.com, info@example.com"></textarea></div>
           <div class="col-12"><label class="form-label">Sender Email <small class="text-muted">(optional, used when emailing client)</small></label><input name="sender_email" class="form-control" placeholder="you@yourcompany.com"></div>
+          <div class="col-12">
+            <label class="form-label">Sheet Mapping (JSON, optional)</label>
+            <textarea name="sheet_mapping" class="form-control" rows="4" placeholder='{"headers":["Name","Contact Number",...],"labels":{"Contact Number":["Contact number","Phone","Phone Number","Contact"]}}'></textarea>
+            <div class="form-text">Define headers and label synonyms per header. See Edit for examples.</div>
+          </div>
           <div class="col-12"><button class="btn btn-primary">Add Client</button></div>
         </form>
 
@@ -253,6 +259,11 @@
             <label class="form-label">Sender Email <small class="text-muted">(optional)</small></label>
             <input type="email" class="form-control" name="sender_email" id="editClientSender" placeholder="you@yourcompany.com">
           </div>
+          <div class="mb-2">
+            <label class="form-label">Sheet Mapping (JSON)</label>
+            <textarea name="sheet_mapping" id="editClientMapping" class="form-control" rows="6" placeholder='{"headers":["Name","Contact Number","Email","Preferred Time","From Suburb","To Suburb","About Move","Bedrooms","Move Date","Comments"],"labels":{"Contact Number":["Contact number","Phone","Phone Number","Contact"]}}'></textarea>
+            <div class="form-text">Provide headers in order. Optionally add a "labels" map to match label synonyms (e.g., Contact Number: Contact number, Phone, Phone Number, Contact). Extraction assumes "Label: Value" lines in email text.</div>
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -275,12 +286,14 @@ document.addEventListener('DOMContentLoaded', function () {
       var shortcode = button.getAttribute('data-shortcode');
       var emails = button.getAttribute('data-emails') || '';
       var sender = button.getAttribute('data-sender') || '';
+      var mapping = button.getAttribute('data-mapping') || '';
       document.getElementById('editClientId').value = id;
       document.getElementById('editClientName').value = name;
       document.getElementById('editClientWebsite').value = website;
       document.getElementById('editClientShortcode').value = shortcode;
       var em = document.getElementById('editClientEmails'); if (em) em.value = emails;
       var se = document.getElementById('editClientSender'); if (se) se.value = sender;
+      var mp = document.getElementById('editClientMapping'); if (mp) mp.value = mapping;
     });
   }
 

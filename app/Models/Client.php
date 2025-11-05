@@ -19,6 +19,12 @@ class Client
         } catch (\Throwable $e) {
             // ignore if exists or no permission
         }
+        // Optional sheet mapping JSON for no-code mapping
+        try {
+            DB::pdo()->exec("ALTER TABLE clients ADD COLUMN sheet_mapping TEXT NULL AFTER sender_email");
+        } catch (\Throwable $e) {
+            // ignore if exists or no permission
+        }
     }
     public static function listByUser(int $userId): array
     {
@@ -61,6 +67,13 @@ class Client
         self::ensureContactEmails();
         $stmt = DB::pdo()->prepare('UPDATE clients SET sender_email = ? WHERE id = ? AND user_id = ?');
         $stmt->execute([$senderEmail, $id, $userId]);
+    }
+
+    public static function updateSheetMapping(int $userId, int $id, ?string $mappingJson): void
+    {
+        self::ensureContactEmails();
+        $stmt = DB::pdo()->prepare('UPDATE clients SET sheet_mapping = ? WHERE id = ? AND user_id = ?');
+        $stmt->execute([$mappingJson, $id, $userId]);
     }
 
     public static function findByShortcode(int $userId, string $code): ?array

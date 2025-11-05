@@ -100,7 +100,7 @@
 <div class="d-flex justify-content-between mb-2">
   <div>
     <a class="btn btn-sm btn-outline-success" href="/leads/export?status=genuine&range=<?php echo urlencode($range); ?>&q=<?php echo urlencode($q ?? ''); ?>&sort=<?php echo urlencode($sort); ?><?php if(!empty($activeClient)) echo '&client='.urlencode($activeClient); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for current filters">Export CSV (Genuine)</a>
-    <form method="post" action="/leads/sync-sheets" class="d-inline ms-1">
+    <form method="post" action="/leads/sync-sheets" class="d-inline ms-1 js-sync-sheets">
       <?php echo App\Security\Csrf::input(); ?>
       <input type="hidden" name="range" value="<?php echo Helpers::e($range); ?>">
       <?php if (!empty($activeClient)): ?><input type="hidden" name="client" value="<?php echo Helpers::e($activeClient); ?>"><?php endif; ?>
@@ -372,6 +372,56 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 </script>
 
+
+<!-- Minimal Toast (bottom-right) -->
+<div class="toast-container position-fixed bottom-0 end-0 p-3" id="syncToastContainer"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const container = document.getElementById('syncToastContainer');
+  let toastEl = null, toastObj = null, toastBody = null;
+  function ensureToast(){
+    if (toastEl) return;
+    toastEl = document.createElement('div');
+    toastEl.className = 'toast align-items-center text-bg-dark border-0';
+    toastEl.setAttribute('role','status');
+    toastEl.setAttribute('aria-live','polite');
+    toastEl.setAttribute('aria-atomic','true');
+    toastEl.innerHTML = '<div class="d-flex"><div class="toast-body small" id="syncToastBody">Syncing…</div><button type="button" class="btn-close btn-close-white me-2 m-auto" data-bs-dismiss="toast" aria-label="Close"></button></div>';
+    container.appendChild(toastEl);
+    toastBody = toastEl.querySelector('#syncToastBody');
+    toastObj = bootstrap.Toast.getOrCreateInstance(toastEl, { autohide: false });
+  }
+  function show(text){ ensureToast(); toastBody.textContent = text; toastObj.show(); }
+  function update(text){ if (toastBody) toastBody.textContent = text; }
+  function done(text, ok=true){ update(text); if (toastEl) { toastEl.classList.toggle('text-bg-success', ok); toastEl.classList.toggle('text-bg-danger', !ok); } }
+  async function poll(){
+    try {
+      const res = await fetch('/action/sync-sheets-progress', { headers: { 'Accept': 'application/json' } });
+      if (!res.ok) return;
+      const j = await res.json();
+      const total = j.total || 0; const processed = j.processed || 0;
+      if (!j.done) {
+        update(`Syncing to Google Sheet… ${processed} of ${total}`);
+        setTimeout(poll, 600);
+      } else {
+        done(`Done. Sent ${processed} of ${total}.${j.errors? ' Errors: '+j.errors : ''}`, (j.errors||0)===0);
+      }
+    } catch (e) {}
+  }
+  document.querySelectorAll('form.js-sync-sheets').forEach(function (form) {
+    form.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      show('Syncing to Google Sheet…');
+      poll();
+      try {
+        const fd = new FormData(form);
+        await fetch(form.action, { method: 'POST', body: fd, headers: { 'X-Requested-With':'XMLHttpRequest' } });
+      } catch (e) { done('Sync failed.', false); }
+    });
+  });
+});
+</script>
 
 <!-- Client Message Modal -->
 <div class="modal fade" id="clientMessageModal" tabindex="-1" aria-hidden="true">
