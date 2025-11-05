@@ -11,7 +11,7 @@
       <?php echo Csrf::input(); ?>
       <input type="hidden" name="return" value="/dashboard2">
       <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify emails into leads using your selected filter mode">Run Filter</button>
-      <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':'Algorithmic'); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
+      <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':($filterMode==='local_ml'?'Local ML':'Algorithmic')); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
     </form>
     <form id="processAllFormD2" method="post" action="/action/run-filter-all" class="d-inline ms-2 js-loading-form"><!-- Process All -->
       <?php echo Csrf::input(); ?>
@@ -32,6 +32,16 @@
       if (!empty($activeClient)) { $exportQs['client'] = $activeClient; }
     ?>
     <a class="btn btn-sm btn-success ms-2" href="<?php echo '/leads/export?' . http_build_query($exportQs); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for the selected range">Export CSV</a>
+    <form method="post" action="/leads/sync-sheets" class="d-inline ms-1">
+      <?php echo Csrf::input(); ?>
+      <input type="hidden" name="range" value="<?php echo Helpers::e($range); ?>">
+      <?php if (!empty($activeClient)): ?><input type="hidden" name="client" value="<?php echo Helpers::e($activeClient); ?>"><?php endif; ?>
+      <input type="hidden" name="status" value="genuine">
+      <input type="hidden" name="return" value="/dashboard2">
+      <button class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Append current genuine leads to Google Sheet via webhook">Sync to Google Sheet</button>
+    </form>
+    <?php $msgQs = ['range'=>$range]; if ($range==='custom') { $msgQs['start']=$start; $msgQs['end']=$end; } if (!empty($activeClient)) { $msgQs['client']=$activeClient; } ?>
+    <a class="btn btn-sm btn-outline-primary ms-1 js-client-message" href="#" data-url="<?php echo '/client-message?' . http_build_query($msgQs); ?>" data-bs-toggle="tooltip" title="Prepare a client email with CSV attachment instructions">Send Client Message</a>
   </div>
 </div>
 
@@ -45,8 +55,13 @@
         $tip = 'Show ' . strtolower($label);
         return '<a class="'.$cls.'" href="'.$url.'" data-bs-toggle="tooltip" title="'.htmlspecialchars($tip, ENT_QUOTES).'">'.$label.'</a>';
       };
+      echo $rangeBtn('Today','today', $range==='today');
+      echo $rangeBtn('Yesterday','yesterday', $range==='yesterday');
+      echo $rangeBtn('Last 24 Hours','last_24', $range==='last_24');
+      echo $rangeBtn('This Week','this_week', $range==='this_week');
       echo $rangeBtn('Last Week','last_week', $range==='last_week');
       echo $rangeBtn('Last 7 Days','last_7', $range==='last_7');
+      echo $rangeBtn('This Month','this_month', $range==='this_month');
       echo $rangeBtn('Last Month','last_month', $range==='last_month');
       echo $rangeBtn('Last 30 Days','last_30', $range==='last_30');
       echo $rangeBtn('All Time','all', $range==='all');
@@ -302,6 +317,80 @@ document.addEventListener('DOMContentLoaded', function(){
       type: 'bar', data: { labels: (domains||[]).map(d=>d.dom), datasets:[{ label:'emails', data:(domains||[]).map(d=>+d.c), backgroundColor:'#3b82f6' }] }, options:{ responsive:true, resizeDelay:120, maintainAspectRatio:false, indexAxis:'x', scales:{ y:{ beginAtZero:true } } }
     });
   }
+});
+</script>
+
+<!-- Client Message Modal -->
+<div class="modal fade" id="clientMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Client Message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="clientMessageBody">
+        <div class="text-muted">Loading…</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modalEl = document.getElementById('clientMessageModal');
+  const bodyEl = document.getElementById('clientMessageBody');
+  document.querySelectorAll('a.js-client-message').forEach(function (a) {
+    a.addEventListener('click', async function (e) {
+      e.preventDefault();
+      const base = this.getAttribute('data-url') || '/client-message';
+      const url = base + (base.includes('?') ? '&' : '?') + 'partial=1';
+      bodyEl.innerHTML = '<div class="text-muted">Loading…</div>';
+      try {
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const html = await res.text();
+        bodyEl.innerHTML = html;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } catch (e) { bodyEl.innerHTML = '<div class="text-danger">Failed to load.</div>'; }
+    });
+  });
+
+  // Intercept Update form submit inside modal and reload partial
+  document.addEventListener('submit', async function (e) {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const action = form.getAttribute('action') || '';
+    if (!/\/client-message$/.test(action)) return;
+    e.preventDefault();
+    try {
+      const fd = new FormData(form);
+      const qs = new URLSearchParams(fd);
+      qs.set('partial','1');
+      const res = await fetch('/client-message?' + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const html = await res.text();
+      bodyEl.innerHTML = html;
+    } catch (err) {
+      bodyEl.innerHTML = '<div class="text-danger">Failed to update.</div>';
+    }
+  }, true);
+
+  // Handle mailto and copy inside modal via event delegation
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.id === 'btnMailto') {
+      e.preventDefault();
+      const to = (document.getElementById('msgTo') || {}).value || '';
+      const subj = (document.getElementById('msgSubject') || {}).value || '';
+      const body = (document.getElementById('msgBody') || {}).value || '';
+      const mailto = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body + "\n\n(Please attach the CSV you downloaded from the app.)");
+      window.location.href = mailto;
+    } else if (t.id === 'btnCopy') {
+      e.preventDefault();
+      const body = (document.getElementById('msgBody') || {}).value || '';
+      try { navigator.clipboard.writeText(body); t.textContent='Copied'; setTimeout(()=>{ t.textContent='Copy Message'; }, 1200); } catch(e) {}
+    }
+  }, true);
 });
 </script>
 

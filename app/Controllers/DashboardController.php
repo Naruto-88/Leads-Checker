@@ -51,7 +51,7 @@ class DashboardController
         $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
         $clientId = $client['id'] ?? null;
         // Normalize and validate range/start/end
-        $allowed = ['last_week','last_7','last_month','last_30','all','custom'];
+        $allowed = ['today','yesterday','this_week','this_month','last_24','last_week','last_7','last_month','last_30','all','custom'];
         if (!in_array($quick, $allowed, true)) { $quick = 'last_7'; }
         [$startDefault, $endDefault] = \App\Helpers::dateRangeQuick($quick === 'custom' ? 'last_7' : $quick);
         $startRaw = trim($_GET['start'] ?? '');
@@ -470,6 +470,46 @@ class DashboardController
         Helpers::redirect('/dashboard2');
     }
 
+    public function sheetsSync(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $user = Auth::user();
+        $range = $_POST['range'] ?? 'last_7';
+        $clientCode = trim($_POST['client'] ?? '');
+        $status = trim($_POST['status'] ?? 'genuine');
+        $start = trim($_POST['start'] ?? '');
+        $end = trim($_POST['end'] ?? '');
+
+        // Resolve client
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+
+        // Resolve dates
+        if ($range === 'custom' && $start !== '' && $end !== '') {
+            // Accept YYYY-MM-DD or full datetime; normalize
+            $start = preg_match('/^\d{4}-\d{2}-\d{2}$/', $start) ? $start.' 00:00:00' : $start;
+            $end = preg_match('/^\d{4}-\d{2}-\d{2}$/', $end) ? $end.' 23:59:59' : $end;
+        } else {
+            [$start, $end] = \App\Helpers::dateRangeQuick($range);
+        }
+
+        // Gather rows and push
+        $filters = ['start'=>$start,'end'=>$end,'client_id'=>$client['id'] ?? null];
+        if (in_array($status, ['genuine','spam'], true)) { $filters['status'] = $status; }
+        $rows = \App\Models\Lead::listByUserForExport($user['id'], $filters);
+        $sent = 0;
+        foreach ($rows as $r) {
+            $leadId = (int)($r['id'] ?? 0);
+            if ($leadId > 0) {
+                try { \App\Services\SheetsWebhook::sendLeadById($leadId); $sent++; } catch (\Throwable $e) {}
+            }
+        }
+        $_SESSION['flash'] = 'Pushed ' . $sent . ' leads to Google Sheets webhook.';
+        $return = trim($_POST['return'] ?? '');
+        if ($return && str_starts_with($return, '/')) { \App\Helpers::redirect($return); }
+        \App\Helpers::redirect('/');
+    }
+
     public function runFilterAll(): void
     {
         Auth::requireLogin();
@@ -485,6 +525,7 @@ class DashboardController
         $mode = $settings['filter_mode'] ?? 'algorithmic';
         $openaiKey = \App\Helpers::decryptSecret($settings['openai_api_key_enc'] ?? null, DB::env('APP_KEY',''));
         $client = ($mode === 'gpt' && $openaiKey) ? new OpenAIClient($openaiKey) : null;
+        $useLocal = ($mode === 'local_ml');
 
         $batch = max(100, (int)($_POST['batch'] ?? 500));
         $cap = max($batch, (int)($_POST['cap'] ?? 5000));

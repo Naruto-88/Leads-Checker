@@ -13,6 +13,12 @@ class Client
         } catch (\Throwable $e) {
             // ignore if exists or no permission
         }
+        // Also ensure sender_email exists for outbound messaging defaults
+        try {
+            DB::pdo()->exec("ALTER TABLE clients ADD COLUMN sender_email VARCHAR(255) NULL AFTER contact_emails");
+        } catch (\Throwable $e) {
+            // ignore if exists or no permission
+        }
     }
     public static function listByUser(int $userId): array
     {
@@ -48,6 +54,13 @@ class Client
         self::ensureContactEmails();
         $stmt = DB::pdo()->prepare('UPDATE clients SET contact_emails = ? WHERE id = ? AND user_id = ?');
         $stmt->execute([$emails, $id, $userId]);
+    }
+
+    public static function updateSenderEmail(int $userId, int $id, ?string $senderEmail): void
+    {
+        self::ensureContactEmails();
+        $stmt = DB::pdo()->prepare('UPDATE clients SET sender_email = ? WHERE id = ? AND user_id = ?');
+        $stmt->execute([$senderEmail, $id, $userId]);
     }
 
     public static function findByShortcode(int $userId, string $code): ?array

@@ -29,6 +29,12 @@ class Lead
             $stmt->execute([$email['user_id'], $email['id'], $email['client_id'] ?? null, $result['status'], $result['score'], $result['mode'], $now, $now]);
             $leadId = (int)$pdo->lastInsertId();
         }
+        // Optional: push to Google Sheets webhook if configured (only for genuine leads)
+        try {
+            if (($result['status'] ?? 'unknown') !== 'unknown') {
+                \App\Services\SheetsWebhook::sendLeadFromEmail($email, $result);
+            }
+        } catch (\Throwable $e) {}
         return $leadId;
     }
 
@@ -139,6 +145,7 @@ class Lead
         $pdo->prepare('UPDATE leads SET status = ?, updated_at = NOW() WHERE id = ? AND user_id = ?')->execute([$status, $leadId, $userId]);
         $pdo->prepare('INSERT INTO lead_checks (lead_id, checked_by_user_id, mode, score, reason, created_at) VALUES (?,?,?,?,?,NOW())')
             ->execute([$leadId, $userId, 'manual', 100, 'Manual override to ' . $status]);
+        try { \App\Services\SheetsWebhook::sendLeadById($leadId); } catch (\Throwable $e) {}
     }
 
     public static function listByUserForExport(int $userId, array $opts = []): array

@@ -147,7 +147,7 @@
         <h6>Existing Clients</h6>
         <div class="table-responsive">
           <table class="table table-sm">
-            <thead><tr><th>Shortcode</th><th>Name</th><th>Website</th><th>Email Addresses</th><th></th></tr></thead>
+            <thead><tr><th>Shortcode</th><th>Name</th><th>Website</th><th>Email Addresses</th><th>Sender Email</th><th></th></tr></thead>
             <tbody>
               <?php foreach (($clients ?? []) as $c): ?>
               <tr>
@@ -155,8 +155,9 @@
                 <td><?php echo Helpers::e($c['name']); ?></td>
                 <td><?php echo Helpers::e($c['website']); ?></td>
                 <td class="small text-muted" style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;" title="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>"><?php echo Helpers::e($c['contact_emails'] ?? ''); ?></td>
+                <td class="small"><?php echo Helpers::e($c['sender_email'] ?? ''); ?></td>
                 <td>
-                  <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#editClientModal" data-id="<?php echo (int)$c['id']; ?>" data-name="<?php echo Helpers::e($c['name']); ?>" data-website="<?php echo Helpers::e($c['website']); ?>" data-shortcode="<?php echo Helpers::e($c['shortcode']); ?>" data-emails="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>">Edit</button>
+                  <button type="button" class="btn btn-sm btn-outline-primary me-2" data-bs-toggle="modal" data-bs-target="#editClientModal" data-id="<?php echo (int)$c['id']; ?>" data-name="<?php echo Helpers::e($c['name']); ?>" data-website="<?php echo Helpers::e($c['website']); ?>" data-shortcode="<?php echo Helpers::e($c['shortcode']); ?>" data-emails="<?php echo Helpers::e($c['contact_emails'] ?? ''); ?>" data-sender="<?php echo Helpers::e($c['sender_email'] ?? ''); ?>">Edit</button>
                   <form method="post" action="/settings/delete-client" onsubmit="return confirm('Delete client?');" class="d-inline">
                     <?php echo Csrf::input(); ?>
                     <input type="hidden" name="id" value="<?php echo (int)$c['id']; ?>">
@@ -177,6 +178,7 @@
           <div class="col-12"><label class="form-label">Website</label><input name="website" class="form-control" placeholder="https://example.com"></div>
           <div class="col-6"><label class="form-label">Shortcode</label><input name="shortcode" class="form-control" placeholder="ABC" required></div>
           <div class="col-12"><label class="form-label">Client Email Addresses <small class="text-muted">(comma or new line)</small></label><textarea name="contact_emails" class="form-control" rows="2" placeholder="sales@example.com, info@example.com"></textarea></div>
+          <div class="col-12"><label class="form-label">Sender Email <small class="text-muted">(optional, used when emailing client)</small></label><input name="sender_email" class="form-control" placeholder="you@yourcompany.com"></div>
           <div class="col-12"><button class="btn btn-primary">Add Client</button></div>
         </form>
 
@@ -203,6 +205,14 @@
       <div class="col-md-6">
         <label class="form-label">Page Size</label>
         <input type="number" class="form-control" name="page_size" value="<?php echo (int)$settings['page_size']; ?>" min="5" max="200">
+      </div>
+      <div class="col-md-8">
+        <label class="form-label">Google Sheets Webhook URL <small class="text-muted">(Apps Script web app URL)</small></label>
+        <input type="url" class="form-control" name="sheets_webhook_url" value="<?php echo Helpers::e($settings['sheets_webhook_url'] ?? ''); ?>" placeholder="https://script.google.com/macros/s/.../exec">
+      </div>
+      <div class="col-md-4">
+        <label class="form-label">Webhook Secret <small class="text-muted">(optional)</small></label>
+        <input type="text" class="form-control" name="sheets_webhook_secret" value="<?php echo Helpers::e($settings['sheets_webhook_secret'] ?? ''); ?>" placeholder="shared-secret">
       </div>
       <div class="col-12">
         <button class="btn btn-primary">Save</button>
@@ -239,6 +249,10 @@
             <label class="form-label">Client Email Addresses <small class="text-muted">(comma or new line)</small></label>
             <textarea class="form-control" name="contact_emails" id="editClientEmails" rows="2" placeholder="sales@example.com, info@example.com"></textarea>
           </div>
+          <div class="mb-2">
+            <label class="form-label">Sender Email <small class="text-muted">(optional)</small></label>
+            <input type="email" class="form-control" name="sender_email" id="editClientSender" placeholder="you@yourcompany.com">
+          </div>
         </div>
         <div class="modal-footer">
           <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
@@ -260,11 +274,13 @@ document.addEventListener('DOMContentLoaded', function () {
       var website = button.getAttribute('data-website') || '';
       var shortcode = button.getAttribute('data-shortcode');
       var emails = button.getAttribute('data-emails') || '';
+      var sender = button.getAttribute('data-sender') || '';
       document.getElementById('editClientId').value = id;
       document.getElementById('editClientName').value = name;
       document.getElementById('editClientWebsite').value = website;
       document.getElementById('editClientShortcode').value = shortcode;
       var em = document.getElementById('editClientEmails'); if (em) em.value = emails;
+      var se = document.getElementById('editClientSender'); if (se) se.value = sender;
     });
   }
 

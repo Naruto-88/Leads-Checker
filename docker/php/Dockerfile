@@ -1,9 +1,11 @@
-FROM php:8.2-apache
+FROM php:8.2-apache-bookworm
 
 # Install basic tools
-RUN apt-get update \
-    && apt-get install -y --no-install-recommends ca-certificates curl unzip git \
-    && rm -rf /var/lib/apt/lists/*
+RUN set -eux; \
+    rm -rf /var/lib/apt/lists/*; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends ca-certificates curl unzip git; \
+    rm -rf /var/lib/apt/lists/*
 
 # Install PHP extensions using docker-php-extension-installer (handles IMAP deps)
 RUN curl -fsSL https://github.com/mlocati/docker-php-extension-installer/releases/latest/download/install-php-extensions -o /usr/local/bin/install-php-extensions \

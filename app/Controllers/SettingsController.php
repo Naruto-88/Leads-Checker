@@ -178,7 +178,9 @@ class SettingsController
         if (!Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
         $tz = trim($_POST['timezone'] ?? 'UTC');
         $ps = max(5, min(200, (int)($_POST['page_size'] ?? 25)));
-        Setting::saveGeneral(Auth::user()['id'], $tz, $ps);
+        $wh = isset($_POST['sheets_webhook_url']) ? trim((string)$_POST['sheets_webhook_url']) : null;
+        $sec = isset($_POST['sheets_webhook_secret']) ? trim((string)$_POST['sheets_webhook_secret']) : null;
+        Setting::saveGeneral(Auth::user()['id'], $tz, $ps, ($wh === '' ? null : $wh), ($sec === '' ? null : $sec));
         Helpers::redirect('/settings');
     }
 
@@ -190,13 +192,17 @@ class SettingsController
         $website = trim($_POST['website'] ?? '');
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
         $emails = isset($_POST['contact_emails']) ? trim((string)$_POST['contact_emails']) : null;
+        $senderEmail = isset($_POST['sender_email']) ? trim((string)$_POST['sender_email']) : null;
         if (!$name || !$short) { $_SESSION['flash'] = 'Client name and shortcode required.'; Helpers::redirect('/settings'); }
         \App\Models\Client::create(Auth::user()['id'], $name, $website ?: null, $short);
         // Update contact emails if provided
         try {
             $pdo = \App\Core\DB::pdo();
             $id = (int)$pdo->lastInsertId();
-            if ($id && $emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
+            if ($id) {
+                if ($emails !== '') { \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, $emails); }
+                if ($senderEmail !== '') { \App\Models\Client::updateSenderEmail(Auth::user()['id'], $id, $senderEmail); }
+            }
         } catch (\Throwable $e) {}
         // Stay on Clients tab after adding
         Helpers::redirect('/settings?tab=clients');
@@ -220,12 +226,14 @@ class SettingsController
         $website = trim($_POST['website'] ?? '');
         $short = strtoupper(trim($_POST['shortcode'] ?? ''));
         $emails = trim((string)($_POST['contact_emails'] ?? ''));
+        $senderEmail = trim((string)($_POST['sender_email'] ?? ''));
         if (!$id || !$name || !$short) {
             $_SESSION['flash'] = 'Client id, name and shortcode are required.';
             Helpers::redirect('/settings?tab=clients');
         }
         \App\Models\Client::update(Auth::user()['id'], $id, $name, $website ?: null, $short);
         \App\Models\Client::updateContactEmails(Auth::user()['id'], $id, ($emails === '' ? null : $emails));
+        \App\Models\Client::updateSenderEmail(Auth::user()['id'], $id, ($senderEmail === '' ? null : $senderEmail));
         Helpers::redirect('/settings?tab=clients');
     }
 

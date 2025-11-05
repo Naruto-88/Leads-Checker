@@ -41,7 +41,7 @@
     <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
     <input type="hidden" name="batch" value="500">
     <button class="btn btn-sm btn-primary js-loading-btn" data-loading-text="Filtering..." data-bs-toggle="tooltip" title="Classify only new/unknown emails">Run Filter</button>
-    <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':'Algorithmic'); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
+    <span class="badge bg-light text-dark ms-2" title="Current filter mode">Mode: <?php echo ($filterMode==='gpt'?'GPT':($filterMode==='local_ml'?'Local ML':'Algorithmic')); ?><?php echo (!empty($strictGpt) && $filterMode==='gpt') ? ' (strict)' : ''; ?></span>
   </form>
   <form method="post" action="/action/backfill-assign" class="js-loading-form ms-1">
     <?php echo App\Security\Csrf::input(); ?>
@@ -85,8 +85,13 @@
   };
 ?>
 <div class="btn-group mb-3" role="group">
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show today\" ',$rangeLink('Today','today')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show yesterday\" ',$rangeLink('Yesterday','yesterday')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last 24 hours\" ',$rangeLink('Last 24 hours','last_24')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show this week\" ',$rangeLink('This week','this_week')); ?>
   <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last week\" ',$rangeLink('Last week','last_week')); ?>
   <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last 7 days\" ',$rangeLink('Last 7 days','last_7')); ?>
+  <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show this month\" ',$rangeLink('This month','this_month')); ?>
   <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last month\" ',$rangeLink('Last month','last_month')); ?>
   <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show last 30 days\" ',$rangeLink('Last 30 days','last_30')); ?>
   <?php echo str_replace('<a ','<a data-bs-toggle=\"tooltip\" title=\"Show all time\" ',$rangeLink('All time','all')); ?>
@@ -95,6 +100,20 @@
 <div class="d-flex justify-content-between mb-2">
   <div>
     <a class="btn btn-sm btn-outline-success" href="/leads/export?status=genuine&range=<?php echo urlencode($range); ?>&q=<?php echo urlencode($q ?? ''); ?>&sort=<?php echo urlencode($sort); ?><?php if(!empty($activeClient)) echo '&client='.urlencode($activeClient); ?>" data-bs-toggle="tooltip" title="Download genuine leads as CSV for current filters">Export CSV (Genuine)</a>
+    <form method="post" action="/leads/sync-sheets" class="d-inline ms-1">
+      <?php echo App\Security\Csrf::input(); ?>
+      <input type="hidden" name="range" value="<?php echo Helpers::e($range); ?>">
+      <?php if (!empty($activeClient)): ?><input type="hidden" name="client" value="<?php echo Helpers::e($activeClient); ?>"><?php endif; ?>
+      <input type="hidden" name="status" value="genuine">
+      <input type="hidden" name="return" value="<?php echo Helpers::e($_SERVER['REQUEST_URI'] ?? '/leads'); ?>">
+      <button class="btn btn-sm btn-outline-success" data-bs-toggle="tooltip" title="Append current genuine leads to Google Sheet via webhook">Sync to Google Sheet</button>
+    </form>
+    <?php
+      $msgQs = ['range'=>$range];
+      if (!empty($activeClient)) { $msgQs['client'] = $activeClient; }
+      // when we support custom ranges here, include start/end as well
+    ?>
+    <a class="btn btn-sm btn-outline-primary ms-1 js-client-message" href="#" data-url="<?php echo '/client-message?' . http_build_query($msgQs); ?>" data-bs-toggle="tooltip" title="Prepare a client email with CSV attachment instructions">Send Client Message</a>
   </div>
   <form method="post" action="/leads/bulk" class="d-flex align-items-center flex-nowrap gap-2 bulk-actions">
     <?php echo App\Security\Csrf::input(); ?>
@@ -354,3 +373,75 @@ document.addEventListener('DOMContentLoaded', function () {
 </script>
 
 
+<!-- Client Message Modal -->
+<div class="modal fade" id="clientMessageModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog modal-lg modal-dialog-scrollable">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Client Message</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body" id="clientMessageBody">
+        <div class="text-muted">Loading…</div>
+      </div>
+    </div>
+  </div>
+  </div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modalEl = document.getElementById('clientMessageModal');
+  const bodyEl = document.getElementById('clientMessageBody');
+  document.querySelectorAll('a.js-client-message').forEach(function (a) {
+    a.addEventListener('click', async function (e) {
+      e.preventDefault();
+      const url = (this.getAttribute('data-url') || '/client-message') + (this.getAttribute('data-url').includes('?') ? '&' : '?') + 'partial=1';
+      bodyEl.innerHTML = '<div class="text-muted">Loading…</div>';
+      try {
+        const res = await fetch(url, { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+        const html = await res.text();
+        bodyEl.innerHTML = html;
+        const modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+        modal.show();
+      } catch (e) { bodyEl.innerHTML = '<div class="text-danger">Failed to load.</div>'; }
+    });
+  });
+
+  // Intercept Update form submit inside modal and reload partial
+  document.addEventListener('submit', async function (e) {
+    const form = e.target;
+    if (!(form instanceof HTMLFormElement)) return;
+    const action = form.getAttribute('action') || '';
+    if (!/\/client-message$/.test(action)) return;
+    e.preventDefault();
+    try {
+      const fd = new FormData(form);
+      const qs = new URLSearchParams(fd);
+      qs.set('partial','1');
+      const res = await fetch('/client-message?' + qs.toString(), { headers: { 'X-Requested-With': 'XMLHttpRequest' } });
+      const html = await res.text();
+      bodyEl.innerHTML = html;
+    } catch (err) {
+      bodyEl.innerHTML = '<div class="text-danger">Failed to update.</div>';
+    }
+  }, true);
+
+  // Handle mailto and copy inside modal via event delegation
+  document.addEventListener('click', function (e) {
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    if (t.id === 'btnMailto') {
+      e.preventDefault();
+      const to = (document.getElementById('msgTo') || {}).value || '';
+      const subj = (document.getElementById('msgSubject') || {}).value || '';
+      const body = (document.getElementById('msgBody') || {}).value || '';
+      const mailto = 'mailto:' + encodeURIComponent(to) + '?subject=' + encodeURIComponent(subj) + '&body=' + encodeURIComponent(body + "\n\n(Please attach the CSV you downloaded from the app.)");
+      window.location.href = mailto;
+    } else if (t.id === 'btnCopy') {
+      e.preventDefault();
+      const body = (document.getElementById('msgBody') || {}).value || '';
+      try { navigator.clipboard.writeText(body); t.textContent='Copied'; setTimeout(()=>{ t.textContent='Copy Message'; }, 1200); } catch(e) {}
+    }
+  }, true);
+});
+</script>

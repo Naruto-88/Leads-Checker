@@ -44,6 +44,29 @@ class Helpers
     {
         $today = new \DateTime('today');
         switch ($label) {
+            case 'this_week':
+                $m = new \DateTime('monday this week');
+                $start = $m->format('Y-m-d 00:00:00');
+                $end = $m->modify('+6 days')->format('Y-m-d 23:59:59');
+                return [$start, $end];
+            case 'this_month':
+                $start = (new \DateTime('first day of this month'))->format('Y-m-01 00:00:00');
+                $end = (new \DateTime('last day of this month'))->format('Y-m-t 23:59:59');
+                return [$start, $end];
+            case 'today':
+                $start = (clone $today)->format('Y-m-d 00:00:00');
+                $end = (clone $today)->format('Y-m-d 23:59:59');
+                return [$start, $end];
+            case 'yesterday':
+                $y = new \DateTime('yesterday');
+                $start = $y->format('Y-m-d 00:00:00');
+                $end = $y->format('Y-m-d 23:59:59');
+                return [$start, $end];
+            case 'last_24':
+            case 'last_24_hours':
+                $endDt = new \DateTime('now');
+                $startDt = (clone $endDt)->modify('-24 hours');
+                return [$startDt->format('Y-m-d H:i:s'), $endDt->format('Y-m-d H:i:s')];
             case 'last_week':
                 $dt = new \DateTime('monday last week');
                 $start = $dt->format('Y-m-d 00:00:00');

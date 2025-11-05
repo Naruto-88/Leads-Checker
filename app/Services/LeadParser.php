@@ -28,6 +28,10 @@ class LeadParser
             // BHR classic move form
             return ['Name','Contact Number','Email','Preferred Time','From Suburb','To Suburb','About Move','Bedrooms','Move Date','Comments'];
         }
+        if ($code === 'GOLDSPAR' || $code === 'GSP' || stripos($clientName, 'goldspar') !== false || stripos($clientName, 'goalpost') !== false) {
+            // Goldspar / Goalposts enquiry form
+            return ['Name','Business Name','Contact Number','Delivery Requested','Delivery Address','Sport Type','Size','Quantity','Comments'];
+        }
         if ($code === 'EAH' || stripos($clientName, 'extend a home') !== false || stripos($clientName, 'extend-a-home') !== false) {
             // Extend A Home form (EAH)
             return ['Council Area','First Name','Last Name','Street Address','Suburb','Postcode','Mobile','Home Contact Number','Email','Type of Renovation Work','How did you hear about us'];
@@ -61,6 +65,21 @@ class LeadParser
                 'Bedrooms' => self::matchFirst($text, '/^\s*Number\s*of\s*bedrooms\s*:\s*(.+)$/im'),
                 'Move Date' => self::matchFirst($text, '/^\s*Date\s*of\s*your\s*move\s*\(.*\)\s*:\s*(.+)$/im'),
                 'Comments' => self::extractCommentsBHR($text),
+            ];
+            return $out;
+        }
+        if ($code === 'GOLDSPAR' || $code === 'GSP' || stripos($clientName, 'goldspar') !== false || stripos($clientName, 'goalpost') !== false) {
+            // Goldspar / Goalposts
+            $out = [
+                'Name' => self::matchFirst($text, '/^\s*(From|Name)\s*:\s*(.+)$/im', 2),
+                'Business Name' => self::matchFirst($text, '/^\s*Business\s*Name\s*:\s*(.+)$/im'),
+                'Contact Number' => self::matchFirst($text, '/^\s*(Contact\s*Number|Phone|Phone\s*Number|Contact)\s*:\s*([\d\s+().-]{6,})$/im', 2),
+                'Delivery Requested' => self::matchFirst($text, '/^\s*Delivery\s*Requested\s*:\s*(.+)$/im'),
+                'Delivery Address' => self::matchFirst($text, '/^\s*Delivery\s*Address\s*:\s*(.+)$/im'),
+                'Sport Type' => self::matchFirst($text, '/^\s*Sport\s*Type\s*:\s*(.+)$/im'),
+                'Size' => self::matchFirst($text, '/^\s*Size\b.*?:\s*(.+)$/im'),
+                'Quantity' => self::matchFirst($text, '/^\s*Quantity\s*:\s*(.+)$/im'),
+                'Comments' => self::extractMessageAfterLabel($text, 'Comments'),
             ];
             return $out;
         }

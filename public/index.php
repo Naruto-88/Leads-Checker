@@ -58,17 +58,18 @@ $router = new App\Core\Router($ENV);
 // Register routes
 $router->get('/', [App\Controllers\DashboardController::class, 'dashboard2']);
 $router->get('/leads', [App\Controllers\LeadsController::class, 'index']);
+$router->post('/leads/delete', [App\Controllers\LeadsController::class, 'delete']);
 $router->get('/leads/export', [App\Controllers\LeadsController::class, 'export']);
+$router->post('/leads/sync-sheets', [App\Controllers\LeadsController::class, 'syncSheets']);
 $router->post('/leads/reprocess', [App\Controllers\LeadsController::class, 'reprocess']);
 $router->post('/leads/bulk', [App\Controllers\LeadsController::class, 'bulk']);
-$router->post('/leads/delete', [App\Controllers\LeadsController::class, 'delete']);
-
 $router->get('/lead/view', [App\Controllers\LeadController::class, 'view']);
 $router->post('/lead/reprocess', [App\Controllers\LeadController::class, 'reprocess']);
 $router->post('/lead/mark', [App\Controllers\LeadController::class, 'mark']);
 
 $router->get('/emails', [App\Controllers\EmailsController::class, 'index']);
 $router->get('/dashboard2', [App\Controllers\DashboardController::class, 'dashboard2']);
+$router->get('/client-message', [App\Controllers\ClientMessageController::class, 'compose']);
 $router->post('/emails/process-selected', [App\Controllers\EmailsController::class, 'processSelected']);
 
 $router->get('/settings', [App\Controllers\SettingsController::class, 'index']);
@@ -124,3 +125,4 @@ $router->get('/action/filter-progress', [App\Controllers\DashboardController::cl
 
 // Dispatch
 $router->dispatch();
+

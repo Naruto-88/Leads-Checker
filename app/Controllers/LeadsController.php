@@ -190,4 +190,25 @@ class LeadsController
         }
         fclose($out);
     }
+
+    public function syncSheets(): void
+    {
+        Auth::requireLogin();
+        if (!\App\Security\Csrf::validate()) { http_response_code(400); echo 'Bad CSRF'; return; }
+        $user = Auth::user();
+        $quick = $_POST['range'] ?? 'last_7';
+        [$start, $end] = \App\Helpers::dateRangeQuick($quick);
+        $clientCode = trim($_POST['client'] ?? '');
+        $status = trim($_POST['status'] ?? 'genuine');
+        $client = $clientCode ? \App\Models\Client::findByShortcode($user['id'], $clientCode) : null;
+        $rows = Lead::listByUserForExport($user['id'], [
+            'start'=>$start,'end'=>$end,'status'=>$status,'client_id'=>$client['id'] ?? null
+        ]);
+        $count = 0;
+        foreach ($rows as $r) {
+            try { \App\Services\SheetsWebhook::sendLeadById((int)$r['id']); $count++; } catch (\Throwable $e) {}
+        }
+        $_SESSION['flash'] = 'Sent ' . $count . ' leads to Google Sheets webhook' . ($clientCode? (' for ' . $clientCode) : '') . '.';
+        \App\Helpers::redirect($_POST['return'] ?? '/leads');
+    }
 }

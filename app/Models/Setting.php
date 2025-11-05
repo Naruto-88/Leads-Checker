@@ -6,8 +6,14 @@ use PDO;
 
 class Setting
 {
+    private static function ensureWebhookColumns(): void
+    {
+        try { DB::pdo()->exec("ALTER TABLE settings ADD COLUMN sheets_webhook_url TEXT NULL"); } catch (\Throwable $e) {}
+        try { DB::pdo()->exec("ALTER TABLE settings ADD COLUMN sheets_webhook_secret VARCHAR(255) NULL"); } catch (\Throwable $e) {}
+    }
     public static function getByUser(int $userId): array
     {
+        self::ensureWebhookColumns();
         $stmt = DB::pdo()->prepare('SELECT * FROM settings WHERE user_id = ? LIMIT 1');
         $stmt->execute([$userId]);
         $row = $stmt->fetch(PDO::FETCH_ASSOC);
@@ -25,10 +31,11 @@ class Setting
         $stmt->execute([$mode, $openaiKeyEnc, $thrGenuine, $thrSpam, $pos, $neg, $strictGpt, $userId]);
     }
 
-    public static function saveGeneral(int $userId, string $timezone, int $pageSize): void
+    public static function saveGeneral(int $userId, string $timezone, int $pageSize, ?string $sheetsWebhookUrl = null, ?string $sheetsWebhookSecret = null): void
     {
-        $stmt = DB::pdo()->prepare('UPDATE settings SET timezone = ?, page_size = ? WHERE user_id = ?');
-        $stmt->execute([$timezone, $pageSize, $userId]);
+        self::ensureWebhookColumns();
+        $stmt = DB::pdo()->prepare('UPDATE settings SET timezone = ?, page_size = ?, sheets_webhook_url = ?, sheets_webhook_secret = ? WHERE user_id = ?');
+        $stmt->execute([$timezone, $pageSize, $sheetsWebhookUrl, $sheetsWebhookSecret, $userId]);
     }
 }
 
